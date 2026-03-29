@@ -1,0 +1,261 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { Batch } from "@/lib/types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ExpiryBadge } from "@/components/ui/expiry-badge";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import {
+  PackageSearch,
+  AlertCircle,
+  XCircle,
+  TrendingUp,
+  Package2,
+  ArrowRight,
+} from "lucide-react";
+
+interface DashboardProps {
+  tenant: string;
+}
+
+export function Dashboard({ tenant }: DashboardProps) {
+  const { data: batches = [], isLoading } = useQuery<Batch[]>({
+    queryKey: ["inventory", tenant, "all", ""],
+    queryFn: async () => {
+      const res = await fetch(`/api/${tenant}/inventory`);
+      if (!res.ok) throw new Error("Failed to fetch inventory");
+      return res.json();
+    },
+  });
+
+  const active     = batches.filter((b) => b.status === "active");
+  const nearExpiry = batches.filter((b) => b.status === "near_expiry");
+  const expired    = batches.filter((b) => b.status === "expired");
+  const totalItems = batches.reduce((s, b) => s + b.availableQty, 0);
+
+  // Chart data
+  const itemStockMap: Record<string, number> = {};
+  for (const b of batches) {
+    itemStockMap[b.itemName] = (itemStockMap[b.itemName] ?? 0) + b.availableQty;
+  }
+  const chartData = Object.entries(itemStockMap)
+    .map(([name, qty]) => ({ name: name.split(" ")[0], qty }))
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, 8);
+
+  const statCards = [
+    {
+      label: "Total Stock",
+      sub: "units in inventory",
+      value: totalItems,
+      icon: TrendingUp,
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
+    },
+    {
+      label: "Active Batches",
+      sub: "in-date and available",
+      value: active.length,
+      icon: PackageSearch,
+      iconBg: "bg-teal-50",
+      iconColor: "text-teal-600",
+    },
+    {
+      label: "Near Expiry",
+      sub: "expiring within 90 days",
+      value: nearExpiry.length,
+      icon: AlertCircle,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-600",
+      alert: nearExpiry.length > 0,
+    },
+    {
+      label: "Expired",
+      sub: "require immediate action",
+      value: expired.length,
+      icon: XCircle,
+      iconBg: "bg-red-50",
+      iconColor: "text-red-600",
+      alert: expired.length > 0,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map(({ label, sub, value, icon: Icon, iconBg, iconColor, alert }) => (
+          <Card
+            key={label}
+            className={`shadow-sm transition-shadow hover:shadow-md ${
+              alert ? "border-amber-200" : ""
+            }`}
+          >
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${iconBg}`}>
+                  <Icon className={`h-5 w-5 ${iconColor}`} />
+                </div>
+                {alert && (
+                  <span className="w-2 h-2 rounded-full bg-amber-500 mt-1" />
+                )}
+              </div>
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1.5" />
+                  <Skeleton className="h-3 w-24" />
+                </>
+              ) : (
+                <>
+                  <p
+                    className="text-3xl font-bold leading-none mb-1"
+                    style={{ fontFamily: "var(--font-jakarta), sans-serif" }}
+                  >
+                    {value.toLocaleString()}
+                  </p>
+                  <p className="text-xs font-semibold text-foreground leading-tight">{label}</p>
+                  <p className="text-xs text-muted-foreground leading-tight">{sub}</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Stock Level Chart */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold">Stock by Item</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Total units available per item</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <Skeleton className="h-52 w-full" />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={chartData} margin={{ top: 4, right: 10, left: -10, bottom: 0 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: "var(--font-inter)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fontFamily: "var(--font-inter)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(v) => [`${v} units`, "Stock"]}
+                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid var(--border)" }}
+                />
+                <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
+                  {chartData.map((_, i) => (
+                    <Cell
+                      key={i}
+                      fill={i % 2 === 0 ? "oklch(0.52 0.15 196)" : "oklch(0.72 0.11 186)"}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Near Expiry Alerts */}
+      {nearExpiry.length > 0 && (
+        <Card className="shadow-sm border-amber-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-amber-100">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+              </div>
+              Near Expiry Batches
+              <span className="ml-1 text-xs font-normal bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                {nearExpiry.length} batch{nearExpiry.length > 1 ? "es" : ""}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-0">
+            {nearExpiry.map((b, i) => (
+              <div
+                key={b.id}
+                className={`flex items-center justify-between py-3 ${
+                  i < nearExpiry.length - 1 ? "border-b border-border" : ""
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-md bg-amber-50 shrink-0">
+                    <Package2 className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{b.itemName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Batch <span className="font-mono">{b.batchNumber}</span> · {b.supplierName}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="text-xs text-muted-foreground hidden sm:block">
+                    {b.availableQty} units
+                  </span>
+                  <ExpiryBadge expiryDate={b.expiryDate} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Expired Batches */}
+      {expired.length > 0 && (
+        <Card className="shadow-sm border-red-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-red-100">
+                <XCircle className="h-4 w-4 text-red-600" />
+              </div>
+              Expired Batches
+              <span className="ml-1 text-xs font-normal bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                {expired.length} batch{expired.length > 1 ? "es" : ""}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-0">
+            {expired.map((b, i) => (
+              <div
+                key={b.id}
+                className={`flex items-center justify-between py-3 ${
+                  i < expired.length - 1 ? "border-b border-border" : ""
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-md bg-red-50 shrink-0">
+                    <Package2 className="h-4 w-4 text-red-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{b.itemName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Batch <span className="font-mono">{b.batchNumber}</span> · {b.supplierName}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="text-xs text-muted-foreground hidden sm:block">
+                    {b.availableQty} units
+                  </span>
+                  <ExpiryBadge expiryDate={b.expiryDate} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
