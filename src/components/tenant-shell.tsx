@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { TopHeader } from "@/components/top-header";
+import { useAuthStore } from "@/lib/stores";
 
 interface TenantShellProps {
   tenant: string;
@@ -11,6 +13,16 @@ interface TenantShellProps {
 
 export function TenantShell({ tenant, children }: TenantShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user } = useAuthStore();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!user) {
+      router.replace("/login");
+    }
+  }, [user, router]);
+
+  if (!user) return null;
 
   return (
     <div className="flex min-h-screen">

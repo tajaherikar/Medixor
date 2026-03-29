@@ -68,4 +68,29 @@ export const handlers = [
     mockInvoices.push(newInvoice as never);
     return HttpResponse.json(newInvoice, { status: 201 });
   }),
+
+  // ── Add Supplier ──────────────────────────────────────────────────────────
+  http.post(`${BASE}/:tenant/suppliers`, async ({ request }) => {
+    const body = await request.json();
+    const newSupplier = {
+      id: `sup-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      ...(body as object),
+    };
+    mockSuppliers.push(newSupplier as never);
+    return HttpResponse.json(newSupplier, { status: 201 });
+  }),
+
+  // ── Add Customer ──────────────────────────────────────────────────────────
+  http.post(`${BASE}/:tenant/customers`, async ({ request }) => {
+    const body = await request.json();
+    const newCustomer = {
+      id: `cus-${Date.now()}`,
+      tenantId: "demo",
+      createdAt: new Date().toISOString(),
+      ...(body as object),
+    };
+    mockCustomers.push(newCustomer as never);
+    return HttpResponse.json(newCustomer, { status: 201 });
+  }),
 ];

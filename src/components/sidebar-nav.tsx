@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   PackageSearch,
@@ -11,8 +11,10 @@ import {
   BarChart3,
   Cross,
   X,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/lib/stores";
 
 const navItems = [
   { label: "Dashboard",  href: "dashboard",  icon: LayoutDashboard, description: "Overview & alerts" },
@@ -31,6 +33,14 @@ interface SidebarNavProps {
 
 function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
+
+  function handleLogout() {
+    logout();
+    onClose?.();
+    router.push("/login");
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -125,10 +135,39 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
       </nav>
 
       {/* Footer */}
-      <div className="px-5 py-4 mt-auto" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
-        <p className="text-xs" style={{ color: "oklch(0.50 0.02 240)" }}>
-          Medixor v1.0 · Medical SaaS
-        </p>
+      <div className="px-4 py-4 mt-auto space-y-2" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
+        {user && (
+          <div className="flex items-center gap-2.5 px-1 mb-1">
+            <div
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold uppercase shrink-0"
+              style={{ background: "var(--sidebar-primary)", color: "var(--sidebar-primary-foreground)" }}
+            >
+              {user.name.slice(0, 2)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold truncate" style={{ color: "var(--sidebar-foreground)" }}>
+                {user.name}
+              </p>
+              <p className="text-xs truncate" style={{ color: "oklch(0.55 0.02 240)" }}>
+                {user.email}
+              </p>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+          style={{ color: "oklch(0.65 0.06 15)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,100,80,0.12)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "transparent";
+          }}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span>Sign out</span>
+        </button>
       </div>
     </div>
   );
