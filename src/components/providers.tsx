@@ -16,15 +16,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [mswReady, setMswReady] = useState(false);
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") {
-      import("@/lib/mock/browser").then(({ worker }) => {
-        worker.start({ onUnhandledRequest: "bypass" }).then(() => {
-          setMswReady(true);
-        });
+    import("@/lib/mock/browser").then(({ worker }) => {
+      worker.start({ onUnhandledRequest: "bypass" }).then(() => {
+        setMswReady(true);
       });
-    } else {
-      setMswReady(true);
-    }
+    });
   }, []);
 
   if (!mswReady) {
