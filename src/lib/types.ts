@@ -6,6 +6,10 @@ export type BatchSelectionStrategy = "fefo" | "fifo" | "manual";
 
 export type DiscountType = "percentage" | "flat";
 
+export type PaymentStatus = "paid" | "partial" | "unpaid";
+
+export type GstRate = 0 | 5 | 12 | 18 | 28;
+
 // ─── Supplier ────────────────────────────────────────────────────────────────
 
 export interface Supplier {
@@ -35,15 +39,21 @@ export interface Batch {
   createdAt: string; // ISO date string — used for FIFO ordering
 }
 
-// ─── Supplier Bill (Stock Inward) ─────────────────────────────────────────────
+// ─── Supplier Bill (Stock Inward / GRN) ──────────────────────────────────────
 
 export interface SupplierBillItem {
   itemName: string;
+  hsnCode: string;
   batchNumber: string;
   expiryDate: string;
   mrp: number;
   purchasePrice: number;
   quantity: number;
+  gstRate: GstRate; // 0 | 5 | 12 | 18 | 28
+  taxableAmount: number; // purchasePrice * qty before GST
+  cgst: number;
+  sgst: number;
+  lineTotal: number; // after GST
 }
 
 export interface SupplierBill {
@@ -54,6 +64,27 @@ export interface SupplierBill {
   invoiceNumber: string;
   date: string;
   items: SupplierBillItem[];
+  taxableAmount: number;
+  totalGst: number;
+  grandTotal: number;
+  paymentStatus: PaymentStatus;
+  paidAmount: number;
+  dueDate: string;
+  createdAt: string;
+}
+
+// ─── Payment ──────────────────────────────────────────────────────────────────
+
+export interface Payment {
+  id: string;
+  tenantId: string;
+  partyId: string;          // supplierId or customerId
+  partyType: "supplier" | "customer";
+  invoiceId: string;
+  amount: number;
+  date: string;
+  mode: "cash" | "upi" | "bank" | "cheque";
+  reference?: string;
   createdAt: string;
 }
 
@@ -79,13 +110,20 @@ export interface Customer {
 export interface InvoiceLineItem {
   batchId: string;
   itemName: string;
+  hsnCode: string;
   batchNumber: string;
   expiryDate: string;
   mrp: number;
   quantity: number;
   discountType?: DiscountType;
   discountValue?: number; // % or flat
-  lineTotal: number; // after item discount
+  lineTotal: number;      // after item discount, before GST
+  gstRate: GstRate;
+  taxableAmount: number;  // == lineTotal
+  cgst: number;
+  sgst: number;
+  gstAmount: number;
+  lineTotalWithGst: number;
 }
 
 export interface Invoice {
@@ -98,7 +136,12 @@ export interface Invoice {
   customerDiscountValue?: number;
   subtotal: number;
   customerDiscountAmount: number;
+  taxableAmount: number;
+  totalGst: number;
   grandTotal: number;
+  paymentStatus: PaymentStatus;
+  paidAmount: number;
+  dueDate: string;
   createdAt: string;
 }
 
@@ -107,6 +150,7 @@ export interface Invoice {
 export interface BillingLineItemDraft {
   batchId: string;
   itemName: string;
+  hsnCode: string;
   batchNumber: string;
   expiryDate: string;
   mrp: number;
@@ -114,6 +158,7 @@ export interface BillingLineItemDraft {
   availableQty: number;
   discountType: DiscountType;
   discountValue: number;
+  gstRate: GstRate;
 }
 
 export interface BillingDraft {

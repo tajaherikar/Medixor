@@ -12,17 +12,19 @@ import {
   Cross,
   X,
   LogOut,
+  Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores";
 
 const navItems = [
-  { label: "Dashboard",  href: "dashboard",  icon: LayoutDashboard, description: "Overview & alerts" },
-  { label: "Inventory",  href: "inventory",  icon: PackageSearch,   description: "Batch-level stock" },
-  { label: "Suppliers",  href: "suppliers",  icon: Building2,       description: "Stock inward" },
-  { label: "Billing",    href: "billing",    icon: ReceiptText,     description: "Create invoices" },
-  { label: "Customers",  href: "customers",  icon: UserRound,       description: "Customer accounts" },
-  { label: "Reports",    href: "reports",    icon: BarChart3,       description: "Analytics" },
+  { label: "Dashboard",    href: "dashboard",   icon: LayoutDashboard, description: "Overview & alerts" },
+  { label: "Inventory",    href: "inventory",   icon: PackageSearch,   description: "Batch-level stock" },
+  { label: "Suppliers",    href: "suppliers",   icon: Building2,       description: "Stock inward & GRN" },
+  { label: "Billing",      href: "billing",     icon: ReceiptText,     description: "Create invoices" },
+  { label: "Customers",    href: "customers",   icon: UserRound,       description: "Customer accounts" },
+  { label: "Payments",     href: "payments",    icon: Banknote,        description: "Outstanding & collections" },
+  { label: "Reports",      href: "reports",     icon: BarChart3,       description: "Analytics & GST" },
 ];
 
 interface SidebarNavProps {

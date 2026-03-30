@@ -21,7 +21,7 @@ import {
   IndianRupee,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { Batch, Invoice } from "@/lib/types";
+import { Batch, Invoice, SupplierBill } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryBadge, StatusBadge } from "@/components/ui/expiry-badge";
@@ -30,13 +30,16 @@ interface ReportsProps {
   tenant: string;
 }
 
-type Tab = "expiry" | "valuation" | "movement" | "invoices";
+type Tab = "expiry" | "valuation" | "movement" | "invoices" | "sales" | "purchase" | "gst";
 
 const tabs: { key: Tab; label: string }[] = [
   { key: "expiry",    label: "Expiry Report" },
   { key: "valuation", label: "Stock Valuation" },
   { key: "movement",  label: "Stock Movement" },
   { key: "invoices",  label: "Invoices" },
+  { key: "sales",     label: "Sales Register" },
+  { key: "purchase",  label: "Purchase Register" },
+  { key: "gst",       label: "GST Summary" },
 ];
 
 function rupees(n: number) {
@@ -58,6 +61,11 @@ export function Reports({ tenant }: ReportsProps) {
   const { data: invoices = [], isLoading: invoiceLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices", tenant],
     queryFn: () => fetch(`/api/${tenant}/invoices`).then((r) => r.json()),
+  });
+
+  const { data: supplierBills = [], isLoading: billsLoading } = useQuery<SupplierBill[]>({
+    queryKey: ["supplier-bills", tenant],
+    queryFn: () => fetch(`/api/${tenant}/supplier-bills`).then((r) => r.json()),
   });
 
   // ─── Derived stats ────────────────────────────────────────────────────────
@@ -108,7 +116,7 @@ export function Reports({ tenant }: ReportsProps) {
     });
   }, [batches]);
 
-  const isLoading = batchLoading || invoiceLoading;
+  const isLoading = batchLoading || invoiceLoading || billsLoading;
 
   if (isLoading) {
     return (
@@ -451,6 +459,226 @@ export function Reports({ tenant }: ReportsProps) {
               )}
             </div>
           )}
+
+          {/* ── Sales Register ────────────────────────────────────────── */}
+          {activeTab === "sales" && (
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Detailed sales register with GST breakdown — {invoices.length} invoice{invoices.length !== 1 ? "s" : ""}.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Invoice", "Customer", "Date", "HSN", "Taxable Amt", "CGST", "SGST", "Total GST", "Grand Total", "Status"].map((h, i) => (
+                        <th key={h} className={`text-xs font-semibold text-muted-foreground py-2.5 uppercase tracking-wide ${i >= 4 ? "text-right pr-0" : "text-left pr-4"} ${i < 9 ? "pr-4" : ""}`}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoices.map((inv) => {
+                      const hsnSet = [...new Set(inv.lineItems.map((l) => l.hsnCode))].join(", ");
+                      const totalCgst = inv.lineItems.reduce((s, l) => s + (l.cgst ?? 0), 0);
+                      const totalSgst = inv.lineItems.reduce((s, l) => s + (l.sgst ?? 0), 0);
+                      const payMap: Record<string, string> = { paid: "bg-green-100 text-green-700 border-green-200", partial: "bg-amber-100 text-amber-700 border-amber-200", unpaid: "bg-red-100 text-red-700 border-red-200" };
+                      return (
+                        <tr key={inv.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
+                          <td className="py-3 pr-4 font-mono text-xs text-muted-foreground uppercase">{inv.id}</td>
+                          <td className="py-3 pr-4 font-medium">{inv.customerName}</td>
+                          <td className="py-3 pr-4 text-xs text-muted-foreground">{format(parseISO(inv.createdAt), "dd MMM yyyy")}</td>
+                          <td className="py-3 pr-4 font-mono text-xs">{hsnSet}</td>
+                          <td className="py-3 pr-4 text-right">{rupees(inv.taxableAmount ?? inv.subtotal)}</td>
+                          <td className="py-3 pr-4 text-right text-blue-600">{rupees(totalCgst)}</td>
+                          <td className="py-3 pr-4 text-right text-blue-600">{rupees(totalSgst)}</td>
+                          <td className="py-3 pr-4 text-right text-blue-700 font-medium">{rupees(inv.totalGst ?? 0)}</td>
+                          <td className="py-3 pr-4 text-right font-bold text-teal-700">{rupees(inv.grandTotal)}</td>
+                          <td className="py-3">
+                            <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium border ${payMap[inv.paymentStatus] ?? payMap.unpaid}`}>
+                              {inv.paymentStatus.charAt(0).toUpperCase() + inv.paymentStatus.slice(1)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border">
+                      <td colSpan={4} className="py-3 pr-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Totals</td>
+                      <td className="py-3 pr-4 text-right font-semibold">{rupees(invoices.reduce((s, i) => s + (i.taxableAmount ?? i.subtotal), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(invoices.reduce((s, i) => s + i.lineItems.reduce((x, l) => x + (l.cgst ?? 0), 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(invoices.reduce((s, i) => s + i.lineItems.reduce((x, l) => x + (l.sgst ?? 0), 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(invoices.reduce((s, i) => s + (i.totalGst ?? 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-bold text-lg text-teal-700">{rupees(stats.totalRevenue)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── Purchase Register ─────────────────────────────────────── */}
+          {activeTab === "purchase" && (
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Supplier purchase bills with GST breakdown — {supplierBills.length} bill{supplierBills.length !== 1 ? "s" : ""}.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Supplier", "Invoice #", "Date", "Taxable Amt", "CGST (Input)", "SGST (Input)", "Total GST", "Grand Total", "Status"].map((h, i) => (
+                        <th key={h} className={`text-xs font-semibold text-muted-foreground py-2.5 uppercase tracking-wide ${i >= 3 ? "text-right pr-0" : "text-left pr-4"} ${i < 8 ? "pr-4" : ""}`}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supplierBills.map((bill) => {
+                      const totalCgst = bill.items.reduce((s, i) => s + i.cgst, 0);
+                      const totalSgst = bill.items.reduce((s, i) => s + i.sgst, 0);
+                      const payMap: Record<string, string> = { paid: "bg-green-100 text-green-700 border-green-200", partial: "bg-amber-100 text-amber-700 border-amber-200", unpaid: "bg-red-100 text-red-700 border-red-200" };
+                      return (
+                        <tr key={bill.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
+                          <td className="py-3 pr-4 font-medium">{bill.supplierName}</td>
+                          <td className="py-3 pr-4 font-mono text-xs">{bill.invoiceNumber}</td>
+                          <td className="py-3 pr-4 text-xs text-muted-foreground">{format(parseISO(bill.date), "dd MMM yyyy")}</td>
+                          <td className="py-3 pr-4 text-right">{rupees(bill.taxableAmount)}</td>
+                          <td className="py-3 pr-4 text-right text-blue-600">{rupees(totalCgst)}</td>
+                          <td className="py-3 pr-4 text-right text-blue-600">{rupees(totalSgst)}</td>
+                          <td className="py-3 pr-4 text-right text-blue-700 font-medium">{rupees(bill.totalGst)}</td>
+                          <td className="py-3 pr-4 text-right font-bold">{rupees(bill.grandTotal)}</td>
+                          <td className="py-3">
+                            <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium border ${payMap[bill.paymentStatus] ?? payMap.unpaid}`}>
+                              {bill.paymentStatus.charAt(0).toUpperCase() + bill.paymentStatus.slice(1)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border">
+                      <td colSpan={3} className="py-3 pr-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Totals</td>
+                      <td className="py-3 pr-4 text-right font-semibold">{rupees(supplierBills.reduce((s, b) => s + b.taxableAmount, 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(supplierBills.reduce((s, b) => s + b.items.reduce((x, i) => x + i.cgst, 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(supplierBills.reduce((s, b) => s + b.items.reduce((x, i) => x + i.sgst, 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(supplierBills.reduce((s, b) => s + b.totalGst, 0))}</td>
+                      <td className="py-3 pr-4 text-right font-bold text-lg">{rupees(supplierBills.reduce((s, b) => s + b.grandTotal, 0))}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── GST Summary ───────────────────────────────────────────── */}
+          {activeTab === "gst" && (() => {
+            // Aggregate output GST (from sales invoices)
+            const outputGst: Record<string, { taxable: number; cgst: number; sgst: number; total: number }> = {};
+            for (const inv of invoices) {
+              for (const l of inv.lineItems) {
+                const key = `${l.hsnCode ?? "—"}|${l.gstRate ?? 0}%`;
+                if (!outputGst[key]) outputGst[key] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
+                outputGst[key].taxable += l.taxableAmount ?? l.lineTotal;
+                outputGst[key].cgst += l.cgst ?? 0;
+                outputGst[key].sgst += l.sgst ?? 0;
+                outputGst[key].total += l.gstAmount ?? (l.cgst ?? 0) + (l.sgst ?? 0);
+              }
+            }
+            // Aggregate input GST (from purchase bills)
+            const inputGst: Record<string, { taxable: number; cgst: number; sgst: number; total: number }> = {};
+            for (const bill of supplierBills) {
+              for (const item of bill.items) {
+                const key = `${item.hsnCode}|${item.gstRate}%`;
+                if (!inputGst[key]) inputGst[key] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
+                inputGst[key].taxable += item.taxableAmount;
+                inputGst[key].cgst += item.cgst;
+                inputGst[key].sgst += item.sgst;
+                inputGst[key].total += item.cgst + item.sgst;
+              }
+            }
+            const totalOutputGst = Object.values(outputGst).reduce((s, v) => s + v.total, 0);
+            const totalInputGst  = Object.values(inputGst).reduce((s, v) => s + v.total, 0);
+            const netGstPayable  = totalOutputGst - totalInputGst;
+            return (
+              <div className="space-y-6">
+                {/* Summary row */}
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { label: "Output GST (Sales)", value: rupees(totalOutputGst), color: "text-teal-700" },
+                    { label: "Input GST (Purchases)", value: rupees(totalInputGst), color: "text-blue-700" },
+                    { label: "Net GST Payable", value: rupees(netGstPayable), color: netGstPayable > 0 ? "text-red-600" : "text-green-600" },
+                  ].map(({ label, value, color }) => (
+                    <Card key={label} className="border border-border shadow-none">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                        <p className={`text-xl font-bold ${color}`} style={{ fontFamily: "var(--font-jakarta)" }}>{value}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Output GST breakdown */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 text-teal-700">Output GST — Sales</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {["HSN Code", "GST Rate", "Taxable Amount", "CGST", "SGST", "Total GST"].map((h, i) => (
+                          <th key={h} className={`text-xs font-semibold text-muted-foreground py-2 uppercase tracking-wide ${i >= 2 ? "text-right pr-0" : "text-left pr-4"} ${i < 5 ? "pr-4" : ""}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(outputGst).map(([key, v]) => {
+                        const [hsn, rate] = key.split("|");
+                        return (
+                          <tr key={key} className="border-b border-border/50 hover:bg-muted/40">
+                            <td className="py-2.5 pr-4 font-mono text-xs">{hsn}</td>
+                            <td className="py-2.5 pr-4 font-medium">{rate}</td>
+                            <td className="py-2.5 pr-4 text-right">{rupees(v.taxable)}</td>
+                            <td className="py-2.5 pr-4 text-right text-teal-600">{rupees(v.cgst)}</td>
+                            <td className="py-2.5 pr-4 text-right text-teal-600">{rupees(v.sgst)}</td>
+                            <td className="py-2.5 text-right font-semibold text-teal-700">{rupees(v.total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Input GST breakdown */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 text-blue-700">Input GST — Purchases (ITC Eligible)</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {["HSN Code", "GST Rate", "Taxable Amount", "CGST (ITC)", "SGST (ITC)", "Total ITC"].map((h, i) => (
+                          <th key={h} className={`text-xs font-semibold text-muted-foreground py-2 uppercase tracking-wide ${i >= 2 ? "text-right pr-0" : "text-left pr-4"} ${i < 5 ? "pr-4" : ""}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(inputGst).map(([key, v]) => {
+                        const [hsn, rate] = key.split("|");
+                        return (
+                          <tr key={key} className="border-b border-border/50 hover:bg-muted/40">
+                            <td className="py-2.5 pr-4 font-mono text-xs">{hsn}</td>
+                            <td className="py-2.5 pr-4 font-medium">{rate}</td>
+                            <td className="py-2.5 pr-4 text-right">{rupees(v.taxable)}</td>
+                            <td className="py-2.5 pr-4 text-right text-blue-600">{rupees(v.cgst)}</td>
+                            <td className="py-2.5 pr-4 text-right text-blue-600">{rupees(v.sgst)}</td>
+                            <td className="py-2.5 text-right font-semibold text-blue-700">{rupees(v.total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>

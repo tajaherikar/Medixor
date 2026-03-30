@@ -4,6 +4,8 @@ import {
   mockCustomers,
   mockSuppliers,
   mockInvoices,
+  mockSupplierBills,
+  mockPayments,
 } from "@/lib/mock/data";
 import { getInventoryStatus } from "@/lib/batch-logic";
 
@@ -92,5 +94,47 @@ export const handlers = [
     };
     mockCustomers.push(newCustomer as never);
     return HttpResponse.json(newCustomer, { status: 201 });
+  }),
+
+  // ── Supplier Bills (Purchase Register) ────────────────────────────────────
+  http.get(`${BASE}/:tenant/supplier-bills`, () => {
+    return HttpResponse.json(mockSupplierBills);
+  }),
+
+  http.post(`${BASE}/:tenant/supplier-bills`, async ({ request }) => {
+    const body = await request.json();
+    const newBill = {
+      id: `sbill-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      ...(body as object),
+    };
+    mockSupplierBills.push(newBill as never);
+    return HttpResponse.json(newBill, { status: 201 });
+  }),
+
+  // ── Payments ──────────────────────────────────────────────────────────────
+  http.get(`${BASE}/:tenant/payments`, ({ request }) => {
+    const url = new URL(request.url);
+    const partyId = url.searchParams.get("partyId");
+    const partyType = url.searchParams.get("partyType");
+    let payments = [...mockPayments];
+    if (partyId) payments = payments.filter((p) => p.partyId === partyId);
+    if (partyType) payments = payments.filter((p) => p.partyType === partyType);
+    return HttpResponse.json(payments);
+  }),
+
+  http.post(`${BASE}/:tenant/payments`, async ({ request }) => {
+    const body = await request.json();
+    const payment = { id: `pay-${Date.now()}`, createdAt: new Date().toISOString(), ...(body as object) };
+    mockPayments.push(payment as never);
+    // Update invoice paidAmount + paymentStatus
+    const b = body as Record<string, unknown>;
+    const inv = mockInvoices.find((i) => i.id === b.invoiceId);
+    if (inv) {
+      inv.paidAmount = (inv.paidAmount ?? 0) + (b.amount as number);
+      if (inv.paidAmount >= inv.grandTotal) inv.paymentStatus = "paid";
+      else if (inv.paidAmount > 0) inv.paymentStatus = "partial";
+    }
+    return HttpResponse.json(payment, { status: 201 });
   }),
 ];

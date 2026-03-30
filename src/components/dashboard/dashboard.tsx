@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Batch } from "@/lib/types";
+import { Batch, Invoice } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryBadge } from "@/components/ui/expiry-badge";
@@ -20,11 +20,18 @@ import {
   XCircle,
   TrendingUp,
   Package2,
-  ArrowRight,
+  IndianRupee,
+  Clock,
+  CalendarDays,
 } from "lucide-react";
+import { format } from "date-fns";
 
 interface DashboardProps {
   tenant: string;
+}
+
+function rupees(n: number) {
+  return "₹" + new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
 }
 
 export function Dashboard({ tenant }: DashboardProps) {
@@ -37,10 +44,28 @@ export function Dashboard({ tenant }: DashboardProps) {
     },
   });
 
+  const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
+    queryKey: ["invoices", tenant],
+    queryFn: () => fetch(`/api/${tenant}/invoices`).then((r) => r.json()),
+  });
+
   const active     = batches.filter((b) => b.status === "active");
   const nearExpiry = batches.filter((b) => b.status === "near_expiry");
   const expired    = batches.filter((b) => b.status === "expired");
   const totalItems = batches.reduce((s, b) => s + b.availableQty, 0);
+
+  // Financial KPIs
+  const today      = format(new Date(), "yyyy-MM-dd");
+  const thisMonth  = format(new Date(), "yyyy-MM");
+  const todaysSales    = invoices
+    .filter((i) => i.createdAt.startsWith(today))
+    .reduce((s, i) => s + i.grandTotal, 0);
+  const monthlyRevenue = invoices
+    .filter((i) => i.createdAt.startsWith(thisMonth))
+    .reduce((s, i) => s + i.grandTotal, 0);
+  const totalOutstanding = invoices
+    .filter((i) => i.paymentStatus !== "paid")
+    .reduce((s, i) => s + (i.grandTotal - (i.paidAmount ?? 0)), 0);
 
   // Chart data
   const itemStockMap: Record<string, number> = {};
@@ -91,6 +116,34 @@ export function Dashboard({ tenant }: DashboardProps) {
 
   return (
     <div className="space-y-6">
+      {/* Financial KPI row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: "Today's Sales", value: rupees(todaysSales), sub: format(new Date(), "dd MMM yyyy"), icon: CalendarDays, iconBg: "bg-teal-50", iconColor: "text-teal-600", valueCls: "text-teal-700" },
+          { label: "Monthly Revenue", value: rupees(monthlyRevenue), sub: format(new Date(), "MMMM yyyy"), icon: TrendingUp, iconBg: "bg-primary/10", iconColor: "text-primary", valueCls: "text-foreground" },
+          { label: "Total Outstanding", value: rupees(totalOutstanding), sub: "unpaid + partially paid", icon: Clock, iconBg: "bg-red-50", iconColor: "text-red-500", valueCls: "text-red-600" },
+        ].map(({ label, value, sub, icon: Icon, iconBg, iconColor, valueCls }) => (
+          <Card key={label} className="shadow-sm border border-border">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${iconBg}`}>
+                <Icon className={`h-5 w-5 ${iconColor}`} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground mb-0.5">{label}</p>
+                {invoicesLoading ? (
+                  <Skeleton className="h-7 w-24 mt-1" />
+                ) : (
+                  <p className={`text-2xl font-bold leading-none ${valueCls}`} style={{ fontFamily: "var(--font-jakarta)" }}>
+                    {value}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">{sub}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, sub, value, icon: Icon, iconBg, iconColor, alert }) => (
