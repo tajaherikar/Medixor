@@ -40,7 +40,7 @@ export async function POST(
       grandTotal: taxableAmount,
       paymentStatus: "pending",
       paidAmount: 0,
-      ...body,
+      ...body, // body values (including computed GST totals from client) override defaults
     };
     await db.addSupplierBill(newBill as never);
     const supplierId = (newBill.supplierId as string) ?? "";
