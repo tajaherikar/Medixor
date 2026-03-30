@@ -99,8 +99,16 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
       tenantId: tenant,
       createdAt: new Date().toISOString(),
     };
-    // In production this would POST to /api/[tenant]/supplier-bills
-    console.log("Supplier bill submitted:", payload);
+    const res = await fetch(`/api/${tenant}/supplier-bills`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed to save bill: ${err.error ?? res.statusText}`);
+      return;
+    }
     setSubmitted(true);
     setTimeout(() => {
       reset();
