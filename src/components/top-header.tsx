@@ -39,6 +39,12 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
+  // Read notifications (click dot to mark as read)
+  const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
+
+  // Cleared notifications (Clear all)
+  const [clearedNotifications, setClearedNotifications] = useState<Set<string>>(new Set());
+
   // Async data for notifications
   const [batches, setBatches] = useState<Batch[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -49,7 +55,7 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
   }, [tenant]);
 
   // Build notifications from live data
-  const notifications = [
+  const allNotifications = [
     ...batches
       .filter((b) => b.status === "expired" && b.availableQty > 0)
       .map((b) => ({
@@ -88,6 +94,11 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
       })),
   ];
 
+  // Filter out cleared notifications
+  const notifications = allNotifications.filter((n) => !clearedNotifications.has(n.id));
+
+  const unreadCount = notifications.filter((n) => !readNotifications.has(n.id)).length;
+
   // Cmd+K shortcut for search
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -116,6 +127,16 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
   function handleLogout() {
     logout();
     router.push("/login");
+  }
+
+  function markAsRead(id: string) {
+    setReadNotifications((prev) => new Set(prev).add(id));
+  }
+
+  function clearAllNotifications() {
+    const allIds = allNotifications.map((n) => n.id);
+    setClearedNotifications((prev) => new Set([...prev, ...allIds]));
+    setReadNotifications((prev) => new Set([...prev, ...allIds]));
   }
 
   return (
@@ -168,9 +189,9 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
               className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-border bg-muted hover:border-primary/40 hover:text-primary transition-colors"
             >
               <Bell className="h-4 w-4" />
-              {notifications.length > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold text-white bg-red-500">
-                  {notifications.length > 9 ? "9+" : notifications.length}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </button>
@@ -179,23 +200,45 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
               <div className="absolute right-0 top-full mt-1 w-80 rounded-lg border border-border bg-card shadow-lg z-50 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
                   <span className="text-sm font-semibold">Notifications</span>
-                  {notifications.length > 0 && (
-                    <span className="text-xs text-muted-foreground">{notifications.length} alerts</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {notifications.length > 0 ? (
+                      <span className="text-xs text-muted-foreground">{notifications.length} alerts</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">All clear</span>
+                    )}
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={clearAllNotifications}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {notifications.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-muted-foreground text-center">All clear — no alerts</p>
                 ) : (
                   <ul className="max-h-72 overflow-y-auto divide-y divide-border">
-                    {notifications.map((n) => (
-                      <li key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-muted transition-colors">
-                        <span className="mt-0.5">{n.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground">{n.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{n.sub}</p>
-                        </div>
-                      </li>
-                    ))}
+                    {notifications.map((n) => {
+                      const isRead = readNotifications.has(n.id);
+                      return (
+                        <li
+                          key={n.id}
+                          onClick={() => markAsRead(n.id)}
+                          className="flex items-start gap-3 px-4 py-3 hover:bg-muted transition-colors cursor-pointer"
+                        >
+                          <span className="mt-0.5">{n.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-foreground">{n.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{n.sub}</p>
+                          </div>
+                          {!isRead && (
+                            <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

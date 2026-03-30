@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
@@ -118,8 +119,12 @@ interface InventoryTableProps {
 }
 
 export function InventoryTable({ tenant }: InventoryTableProps) {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const searchParams = useSearchParams();
+  const defaultStatus = searchParams?.get("status") ?? "all";
+  const defaultSearch = searchParams?.get("search") ?? "";
+
+  const [search, setSearch] = useState(defaultSearch);
+  const [statusFilter, setStatusFilter] = useState(defaultStatus);
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const params = new URLSearchParams();

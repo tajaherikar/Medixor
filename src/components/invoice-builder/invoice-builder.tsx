@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { addDays } from "date-fns";
 import { Customer, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus } from "@/lib/types";
 import { calcLineTotal, calcGrandTotal } from "@/lib/discount";
 import { BatchSelector, SelectedBatchAllocation } from "@/components/batch-selector/batch-selector";
@@ -165,7 +166,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       grandTotal,
       paymentStatus,
       paidAmount: paymentStatus === "paid" ? grandTotal : paidAmount,
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      dueDate: addDays(new Date(), 30).toISOString().split("T")[0],
     };
     await fetch(`/api/${tenant}/invoices`, {
       method: "POST",

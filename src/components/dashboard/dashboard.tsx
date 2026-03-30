@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Batch, Invoice } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +22,6 @@ import {
   XCircle,
   TrendingUp,
   Package2,
-  IndianRupee,
   Clock,
   CalendarDays,
 } from "lucide-react";
@@ -77,6 +78,11 @@ export function Dashboard({ tenant }: DashboardProps) {
     .sort((a, b) => b.qty - a.qty)
     .slice(0, 8);
 
+  const nearExpiryRef = useRef<HTMLDivElement>(null);
+  const expiredRef = useRef<HTMLDivElement>(null);
+
+  const router = useRouter();
+
   const statCards = [
     {
       label: "Total Stock",
@@ -114,6 +120,28 @@ export function Dashboard({ tenant }: DashboardProps) {
     },
   ];
 
+  const onStatCardClick = (label: string) => {
+    if (label === "Near Expiry") {
+      nearExpiryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (label === "Expired") {
+      expiredRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (label === "Active Batches") {
+      router.push(`/${tenant}/inventory?status=active`);
+      return;
+    }
+
+    if (label === "Total Stock") {
+      router.push(`/${tenant}/inventory`);
+      return;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Financial KPI row */}
@@ -149,9 +177,10 @@ export function Dashboard({ tenant }: DashboardProps) {
         {statCards.map(({ label, sub, value, icon: Icon, iconBg, iconColor, alert }) => (
           <Card
             key={label}
-            className={`shadow-sm transition-shadow hover:shadow-md ${
+            onClick={() => onStatCardClick(label)}
+            className={`shadow-sm transition-shadow hover:shadow-lg ${
               alert ? "border-amber-200" : ""
-            }`}
+            } cursor-pointer ring-1 ring-transparent hover:ring-amber-200`}
           >
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
@@ -222,7 +251,8 @@ export function Dashboard({ tenant }: DashboardProps) {
 
       {/* Near Expiry Alerts */}
       {nearExpiry.length > 0 && (
-        <Card className="shadow-sm border-amber-200">
+        <div ref={nearExpiryRef} id="near-expiry-section" className="scroll-mt-20">
+          <Card className="shadow-sm border-amber-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <div className="flex items-center justify-center w-7 h-7 rounded-md bg-amber-100">
@@ -263,11 +293,13 @@ export function Dashboard({ tenant }: DashboardProps) {
             ))}
           </CardContent>
         </Card>
+      </div>
       )}
 
       {/* Expired Batches */}
       {expired.length > 0 && (
-        <Card className="shadow-sm border-red-200">
+        <div ref={expiredRef} id="expired-section" className="scroll-mt-20">
+          <Card className="shadow-sm border-red-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <div className="flex items-center justify-center w-7 h-7 rounded-md bg-red-100">
@@ -308,6 +340,7 @@ export function Dashboard({ tenant }: DashboardProps) {
             ))}
           </CardContent>
         </Card>
+      </div>
       )}
     </div>
   );
