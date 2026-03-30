@@ -82,7 +82,7 @@ export const handlers = [
   // ── Add Supplier ──────────────────────────────────────────────────────────
   http.post(`${BASE}/:tenant/suppliers`, async ({ request }) => {
     const body = await request.json() as Record<string, unknown>;
-    const newSupplier = {
+    const newSupplier: Record<string, unknown> = {
       id: `sup-${Date.now()}`,
       createdAt: new Date().toISOString(),
       ...body,
@@ -94,7 +94,7 @@ export const handlers = [
   // ── Add Customer ──────────────────────────────────────────────────────────
   http.post(`${BASE}/:tenant/customers`, async ({ request }) => {
     const body = await request.json() as Record<string, unknown>;
-    const newCustomer = {
+    const newCustomer: Record<string, unknown> = {
       id: `cus-${Date.now()}`,
       tenantId: "demo",
       createdAt: new Date().toISOString(),
@@ -112,7 +112,7 @@ export const handlers = [
   http.post(`${BASE}/:tenant/supplier-bills`, async ({ request, params }) => {
     const body = await request.json() as Record<string, unknown>;
     const tenant = params.tenant as string;
-    const newBill = {
+    const newBill: Record<string, unknown> = {
       id: `sbill-${Date.now()}`,
       createdAt: new Date().toISOString(),
       ...body,
@@ -168,7 +168,7 @@ export const handlers = [
 
   http.post(`${BASE}/:tenant/payments`, async ({ request }) => {
     const body = await request.json() as Record<string, unknown>;
-    const payment = {
+    const payment: Record<string, unknown> = {
       id: `pay-${Date.now()}`,
       createdAt: new Date().toISOString(),
       ...body,
