@@ -1,0 +1,51 @@
+import { NextRequest, NextResponse } from "next/server";
+import * as db from "@/lib/db";
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ tenant: string }> }
+) {
+  const { tenant } = await params;
+  const url = new URL(req.url);
+  const partyId = url.searchParams.get("partyId");
+  const partyType = url.searchParams.get("partyType");
+  let payments = await db.getPayments(tenant);
+  if (partyId) payments = payments.filter((p) => p.partyId === partyId);
+  if (partyType) payments = payments.filter((p) => p.partyType === partyType);
+  return NextResponse.json(payments);
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ tenant: string }> }
+) {
+  const { tenant } = await params;
+  const body = await req.json() as Record<string, unknown>;
+  const payment = {
+    id: `pay-${Date.now()}`,
+    tenantId: tenant,
+    createdAt: new Date().toISOString(),
+    ...body,
+  };
+  await db.addPayment(payment as never);
+
+  // Update invoice paidAmount + paymentStatus
+  const invoiceId = body.invoiceId as string | undefined;
+  const amount = body.amount as number | undefined;
+  if (invoiceId && amount != null) {
+    const invoices = await db.getInvoices(tenant);
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (inv) {
+      const newPaid = (inv.paidAmount ?? 0) + amount;
+      await db.updateInvoice(invoiceId, {
+        paidAmount: newPaid,
+        paymentStatus:
+          newPaid >= inv.grandTotal ? "paid"
+          : newPaid > 0 ? "partial"
+          : "unpaid",
+      });
+    }
+  }
+
+  return NextResponse.json(payment, { status: 201 });
+}
