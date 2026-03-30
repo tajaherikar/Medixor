@@ -19,7 +19,10 @@ export async function GET() {
     });
     const text = await res.text();
     return NextResponse.json({ env: envCheck, status: res.status, body: text.slice(0, 200) });
-  } catch (err) {
-    return NextResponse.json({ env: envCheck, fetchError: String(err) });
+  } catch (err: unknown) {
+    const cause = err instanceof Error && (err as NodeJS.ErrnoException).cause
+      ? String((err as NodeJS.ErrnoException).cause)
+      : "none";
+    return NextResponse.json({ env: envCheck, fetchError: String(err), cause });
   }
 }
