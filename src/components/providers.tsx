@@ -13,9 +13,12 @@ const queryClient = new QueryClient({
 });
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [mswReady, setMswReady] = useState(false);
+  const [mswReady, setMswReady] = useState(
+    process.env.NODE_ENV !== "development"
+  );
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
     import("@/lib/mock/browser").then(({ worker }) => {
       worker.start({ onUnhandledRequest: "bypass" }).then(() => {
         setMswReady(true);
