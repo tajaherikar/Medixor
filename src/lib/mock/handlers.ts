@@ -57,7 +57,7 @@ export const handlers = [
 
   http.post(`${BASE}/:tenant/invoices`, async ({ request, params }) => {
     const body = await request.json() as Record<string, unknown>;
-    const newInvoice = {
+    const newInvoice: Record<string, unknown> = {
       id: `inv-${Date.now()}`,
       createdAt: new Date().toISOString(),
       ...body,
