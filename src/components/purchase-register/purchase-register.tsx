@@ -155,8 +155,8 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                           <p className="text-xs text-muted-foreground font-mono sm:hidden mt-0.5">{bill.invoiceNumber}</p>
                         </TableCell>
                         <TableCell className="font-mono text-xs hidden sm:table-cell">{bill.invoiceNumber}</TableCell>
-                        <TableCell className="text-sm hidden md:table-cell">{format(parseISO(bill.date), "dd MMM yyyy")}</TableCell>
-                        <TableCell className="text-sm hidden lg:table-cell">{format(parseISO(bill.dueDate), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="text-sm hidden md:table-cell">{bill.date ? format(parseISO(bill.date), "dd MMM yyyy") : "—"}</TableCell>
+                        <TableCell className="text-sm hidden lg:table-cell">{bill.dueDate ? format(parseISO(bill.dueDate), "dd MMM yyyy") : "—"}</TableCell>
                         <TableCell className="text-right text-sm hidden lg:table-cell">{rupees(bill.taxableAmount)}</TableCell>
                         <TableCell className="text-right text-sm text-blue-600 hidden md:table-cell">{rupees(bill.totalGst)}</TableCell>
                         <TableCell className="text-right font-semibold text-sm">{rupees(bill.grandTotal)}</TableCell>

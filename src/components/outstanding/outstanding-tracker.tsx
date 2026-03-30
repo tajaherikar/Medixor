@@ -92,7 +92,7 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
     const totalReceived = custInvoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0);
     const outstanding   = totalBilled - totalReceived;
     const overdueCount  = custInvoices.filter(
-      (i) => i.paymentStatus !== "paid" && isAfter(new Date(), parseISO(i.dueDate))
+      (i) => i.paymentStatus !== "paid" && i.dueDate && isAfter(new Date(), parseISO(i.dueDate))
     ).length;
     return { ...c, totalBilled, totalReceived, outstanding, overdueCount, invoices: custInvoices };
   }).filter((c) => c.invoices.length > 0);
@@ -101,7 +101,7 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
   const totalBilledAll    = invoices.reduce((s, i) => s + i.grandTotal, 0);
   const totalReceivedAll  = invoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0);
   const overdueInvoices   = invoices.filter(
-    (i) => i.paymentStatus !== "paid" && isAfter(new Date(), parseISO(i.dueDate))
+    (i) => i.paymentStatus !== "paid" && i.dueDate && isAfter(new Date(), parseISO(i.dueDate))
   ).length;
 
   const filteredInvoices = invoices.filter((i) =>
@@ -230,20 +230,20 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
               <TableBody>
                 {filteredInvoices.map((inv) => {
                   const balance = inv.grandTotal - (inv.paidAmount ?? 0);
-                  const overdue = isAfter(new Date(), parseISO(inv.dueDate));
+                  const overdue = inv.dueDate ? isAfter(new Date(), parseISO(inv.dueDate)) : false;
                   return (
                     <TableRow key={inv.id} className="text-sm">
                       <TableCell className="font-mono text-xs font-semibold">{inv.id.toUpperCase()}</TableCell>
                       <TableCell className="font-medium">
                         {inv.customerName}
                         <p className="text-xs text-muted-foreground sm:hidden mt-0.5">
-                          Due: {format(parseISO(inv.dueDate), "dd MMM yyyy")}
+                          Due: {inv.dueDate ? format(parseISO(inv.dueDate), "dd MMM yyyy") : "—"}
                           {overdue && <span className="text-red-600 ml-1">(overdue)</span>}
                         </p>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{format(parseISO(inv.createdAt), "dd MMM yyyy")}</TableCell>
                       <TableCell className={`hidden sm:table-cell ${overdue ? "text-red-600 font-semibold" : ""}`}>
-                        {format(parseISO(inv.dueDate), "dd MMM yyyy")}
+                        {inv.dueDate ? format(parseISO(inv.dueDate), "dd MMM yyyy") : "—"}
                         {overdue && <span className="ml-1 text-xs opacity-75">(overdue)</span>}
                       </TableCell>
                       <TableCell className="text-right hidden sm:table-cell">{rupees(inv.grandTotal)}</TableCell>
