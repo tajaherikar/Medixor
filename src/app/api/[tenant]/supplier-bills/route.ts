@@ -18,7 +18,7 @@ export async function POST(
 ) {
   const { tenant } = await params;
   const body = await req.json() as Record<string, unknown>;
-  const newBill = {
+  const newBill: Record<string, unknown> = {
     id: `sbill-${Date.now()}`,
     tenantId: tenant,
     createdAt: new Date().toISOString(),
