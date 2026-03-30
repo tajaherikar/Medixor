@@ -129,16 +129,8 @@ export const handlers = [
   http.post(`${BASE}/:tenant/supplier-bills`, async ({ request, params }) => {
     const tenant = params.tenant as string;
     const body = await request.json() as Record<string, unknown>;
-    const newBill: Record<string, unknown> = {
-      id: `sbill-${Date.now()}`,
-      tenantId: tenant,
-      createdAt: new Date().toISOString(),
-      ...body,
-    };
-    await db.addSupplierBill(newBill as never);
 
-    // Add each item as a new inventory batch
-    const items = (newBill.items ?? []) as Array<{
+    const items = (body.items ?? []) as Array<{
       itemName: string;
       batchNumber: string;
       expiryDate: string;
@@ -146,6 +138,22 @@ export const handlers = [
       purchasePrice: number;
       quantity: number;
     }>;
+    const taxableAmount = items.reduce((sum, i) => sum + i.purchasePrice * i.quantity, 0);
+
+    const newBill: Record<string, unknown> = {
+      id: `sbill-${Date.now()}`,
+      tenantId: tenant,
+      createdAt: new Date().toISOString(),
+      taxableAmount,
+      totalGst: 0,
+      grandTotal: taxableAmount,
+      paymentStatus: "pending",
+      paidAmount: 0,
+      ...body,
+    };
+    await db.addSupplierBill(newBill as never);
+
+    // Add each item as a new inventory batch
     const supplierId = (newBill.supplierId as string) ?? "";
     const supplierName = (newBill.supplierName as string) ?? "";
     const invoiceNumber = (newBill.invoiceNumber as string) ?? "";

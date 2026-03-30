@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient({
@@ -13,27 +12,6 @@ const queryClient = new QueryClient({
 });
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [mswReady, setMswReady] = useState(
-    process.env.NODE_ENV !== "development"
-  );
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    import("@/lib/mock/browser").then(({ worker }) => {
-      worker.start({ onUnhandledRequest: "bypass" }).then(() => {
-        setMswReady(true);
-      });
-    });
-  }, []);
-
-  if (!mswReady) {
-    return (
-      <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
-        Initialising...
-      </div>
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
