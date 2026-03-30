@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { SupplierBill } from "@/lib/types";
@@ -140,8 +141,8 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                   const balance = bill.grandTotal - bill.paidAmount;
                   const isExpanded = expandedId === bill.id;
                   return (
-                    <>
-                      <TableRow key={bill.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setExpandedId(isExpanded ? null : bill.id)}>
+                    <React.Fragment key={bill.id}>
+                      <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => setExpandedId(isExpanded ? null : bill.id)}>
                         <TableCell className="text-muted-foreground">
                           {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                         </TableCell>
@@ -171,7 +172,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
 
                       {/* Expanded items */}
                       {isExpanded && (
-                        <TableRow key={`${bill.id}-items`} className="bg-muted/30">
+                        <TableRow className="bg-muted/30">
                           <TableCell colSpan={12} className="py-0 px-4">
                             <div className="py-3">
                               <p className="text-xs font-semibold text-muted-foreground mb-2">Bill Items</p>
@@ -209,7 +210,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </TableBody>

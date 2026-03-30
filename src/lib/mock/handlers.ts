@@ -1,20 +1,14 @@
 import { http, HttpResponse } from "msw";
-import {
-  mockBatches,
-  mockCustomers,
-  mockSuppliers,
-  mockInvoices,
-  mockSupplierBills,
-  mockPayments,
-} from "@/lib/mock/data";
 import { getInventoryStatus } from "@/lib/batch-logic";
+import { localDb } from "@/lib/local-db";
+import { Batch } from "@/lib/types";
 
 const BASE = "/api";
 
 export const handlers = [
   // ── Suppliers ──────────────────────────────────────────────────────────────
   http.get(`${BASE}/:tenant/suppliers`, () => {
-    return HttpResponse.json(mockSuppliers);
+    return HttpResponse.json(localDb.getSuppliers());
   }),
 
   // ── Inventory / Batches ────────────────────────────────────────────────────
@@ -23,10 +17,7 @@ export const handlers = [
     const status = url.searchParams.get("status");
     const search = url.searchParams.get("search")?.toLowerCase();
 
-    let batches = mockBatches.map((b) => ({
-      ...b,
-      status: getInventoryStatus(b.expiryDate),
-    }));
+    let batches = localDb.getBatches();
 
     if (status && status !== "all") {
       batches = batches.filter((b) => b.status === status);
@@ -45,7 +36,7 @@ export const handlers = [
 
   http.get(`${BASE}/:tenant/inventory/:itemName`, ({ params }) => {
     const itemName = decodeURIComponent(params.itemName as string);
-    const batches = mockBatches.filter(
+    const batches = localDb.getBatches().filter(
       (b) =>
         b.itemName.toLowerCase() === itemName.toLowerCase() &&
         b.availableQty > 0 &&
@@ -56,59 +47,111 @@ export const handlers = [
 
   // ── Customers ─────────────────────────────────────────────────────────────
   http.get(`${BASE}/:tenant/customers`, () => {
-    return HttpResponse.json(mockCustomers);
+    return HttpResponse.json(localDb.getCustomers());
   }),
 
   // ── Invoices ──────────────────────────────────────────────────────────────
   http.get(`${BASE}/:tenant/invoices`, () => {
-    return HttpResponse.json(mockInvoices);
+    return HttpResponse.json(localDb.getInvoices());
   }),
 
-  http.post(`${BASE}/:tenant/invoices`, async ({ request }) => {
-    const body = await request.json();
-    const newInvoice = { id: `inv-${Date.now()}`, createdAt: new Date().toISOString(), ...(body as object) };
-    mockInvoices.push(newInvoice as never);
+  http.post(`${BASE}/:tenant/invoices`, async ({ request, params }) => {
+    const body = await request.json() as Record<string, unknown>;
+    const newInvoice = {
+      id: `inv-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      ...body,
+    };
+
+    // Deduct sold quantities from batch inventory
+    const lineItems = (newInvoice.lineItems ?? []) as Array<{ batchId: string; quantity: number }>;
+    for (const item of lineItems) {
+      const batches = localDb.getBatches();
+      const batch = batches.find((b) => b.id === item.batchId);
+      if (batch) {
+        localDb.updateBatch(batch.id, {
+          availableQty: Math.max(0, batch.availableQty - item.quantity),
+        });
+      }
+    }
+
+    localDb.addInvoice(newInvoice as never);
     return HttpResponse.json(newInvoice, { status: 201 });
   }),
 
   // ── Add Supplier ──────────────────────────────────────────────────────────
   http.post(`${BASE}/:tenant/suppliers`, async ({ request }) => {
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     const newSupplier = {
       id: `sup-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      ...(body as object),
+      ...body,
     };
-    mockSuppliers.push(newSupplier as never);
+    localDb.addSupplier(newSupplier as never);
     return HttpResponse.json(newSupplier, { status: 201 });
   }),
 
   // ── Add Customer ──────────────────────────────────────────────────────────
   http.post(`${BASE}/:tenant/customers`, async ({ request }) => {
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     const newCustomer = {
       id: `cus-${Date.now()}`,
       tenantId: "demo",
       createdAt: new Date().toISOString(),
-      ...(body as object),
+      ...body,
     };
-    mockCustomers.push(newCustomer as never);
+    localDb.addCustomer(newCustomer as never);
     return HttpResponse.json(newCustomer, { status: 201 });
   }),
 
   // ── Supplier Bills (Purchase Register) ────────────────────────────────────
   http.get(`${BASE}/:tenant/supplier-bills`, () => {
-    return HttpResponse.json(mockSupplierBills);
+    return HttpResponse.json(localDb.getSupplierBills());
   }),
 
-  http.post(`${BASE}/:tenant/supplier-bills`, async ({ request }) => {
-    const body = await request.json();
+  http.post(`${BASE}/:tenant/supplier-bills`, async ({ request, params }) => {
+    const body = await request.json() as Record<string, unknown>;
+    const tenant = params.tenant as string;
     const newBill = {
       id: `sbill-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      ...(body as object),
+      ...body,
     };
-    mockSupplierBills.push(newBill as never);
+    localDb.addSupplierBill(newBill as never);
+
+    // Add each item as a new inventory batch
+    const items = (newBill.items ?? []) as Array<{
+      itemName: string;
+      batchNumber: string;
+      expiryDate: string;
+      mrp: number;
+      purchasePrice: number;
+      quantity: number;
+    }>;
+    const supplierId = (newBill.supplierId as string) ?? "";
+    const supplierName = (newBill.supplierName as string) ?? "";
+    const invoiceNumber = (newBill.invoiceNumber as string) ?? "";
+
+    for (const item of items) {
+      const newBatch: Batch = {
+        id: `bat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        tenantId: tenant,
+        itemName: item.itemName,
+        batchNumber: item.batchNumber,
+        supplierId,
+        supplierName,
+        invoiceNumber,
+        expiryDate: item.expiryDate,
+        mrp: item.mrp,
+        purchasePrice: item.purchasePrice,
+        availableQty: item.quantity,
+        originalQty: item.quantity,
+        status: getInventoryStatus(item.expiryDate),
+        createdAt: new Date().toISOString(),
+      };
+      localDb.addBatch(newBatch);
+    }
+
     return HttpResponse.json(newBill, { status: 201 });
   }),
 
@@ -117,24 +160,38 @@ export const handlers = [
     const url = new URL(request.url);
     const partyId = url.searchParams.get("partyId");
     const partyType = url.searchParams.get("partyType");
-    let payments = [...mockPayments];
+    let payments = localDb.getPayments();
     if (partyId) payments = payments.filter((p) => p.partyId === partyId);
     if (partyType) payments = payments.filter((p) => p.partyType === partyType);
     return HttpResponse.json(payments);
   }),
 
   http.post(`${BASE}/:tenant/payments`, async ({ request }) => {
-    const body = await request.json();
-    const payment = { id: `pay-${Date.now()}`, createdAt: new Date().toISOString(), ...(body as object) };
-    mockPayments.push(payment as never);
+    const body = await request.json() as Record<string, unknown>;
+    const payment = {
+      id: `pay-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      ...body,
+    };
+    localDb.addPayment(payment as never);
+
     // Update invoice paidAmount + paymentStatus
-    const b = body as Record<string, unknown>;
-    const inv = mockInvoices.find((i) => i.id === b.invoiceId);
-    if (inv) {
-      inv.paidAmount = (inv.paidAmount ?? 0) + (b.amount as number);
-      if (inv.paidAmount >= inv.grandTotal) inv.paymentStatus = "paid";
-      else if (inv.paidAmount > 0) inv.paymentStatus = "partial";
+    const invoiceId = body.invoiceId as string | undefined;
+    const amount = body.amount as number | undefined;
+    if (invoiceId && amount != null) {
+      const inv = localDb.getInvoices().find((i) => i.id === invoiceId);
+      if (inv) {
+        const newPaid = (inv.paidAmount ?? 0) + amount;
+        localDb.updateInvoice(invoiceId, {
+          paidAmount: newPaid,
+          paymentStatus:
+            newPaid >= inv.grandTotal ? "paid"
+            : newPaid > 0 ? "partial"
+            : "unpaid",
+        });
+      }
     }
+
     return HttpResponse.json(payment, { status: 201 });
   }),
 ];
