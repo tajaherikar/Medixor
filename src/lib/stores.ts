@@ -4,23 +4,19 @@ import { BillingDraft } from "@/lib/types";
 
 // ─── Auth Store ───────────────────────────────────────────────────────────────
 
-const MOCK_USERS = [
-  { id: "u-1", name: "Admin User",  email: "admin@medixor.com", password: "medixor123", role: "admin"  as const },
-  { id: "u-2", name: "Demo User",   email: "demo@medixor.com",  password: "demo123",    role: "viewer" as const },
-];
-
 export type AuthRole = "admin" | "viewer";
 
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  tenantId: string;
   role: AuthRole;
 }
 
 interface AuthState {
   user: AuthUser | null;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -28,14 +24,14 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      login: (email, password) => {
-        const found = MOCK_USERS.find(
-          (u) =>
-            u.email.toLowerCase() === email.toLowerCase() &&
-            u.password === password
-        );
-        if (!found) return false;
-        const { password: _p, ...user } = found;
+      login: async (email, password) => {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!res.ok) return false;
+        const user: AuthUser = await res.json();
         set({ user });
         return true;
       },

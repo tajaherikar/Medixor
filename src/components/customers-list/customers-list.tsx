@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserRound, Percent, IndianRupee, Plus } from "lucide-react";
+import { useAuthStore } from "@/lib/stores";
 
 const customerSchema = z.object({
   name:          z.string().min(1, "Customer name required"),
@@ -51,6 +52,8 @@ interface CustomersListProps {
 export function CustomersList({ tenant }: CustomersListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
 
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: ["customers", tenant],
@@ -111,43 +114,51 @@ export function CustomersList({ tenant }: CustomersListProps) {
               {customers.length} customer{customers.length !== 1 ? "s" : ""} registered
             </p>
           </div>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Add Customer
-          </Button>
+          {isAdmin && (
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add Customer
+            </Button>
+          )}
         </div>
 
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto">Customer</TableHead>
-              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto">Phone</TableHead>
-              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto">Email</TableHead>
-              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto">Discount</TableHead>
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Customer</TableHead>
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden sm:table-cell">Phone</TableHead>
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden md:table-cell">Email</TableHead>
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Discount</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 4 }).map((_, j) => (
-                    <TableCell key={j} className="py-4"><Skeleton className="h-5 w-full" /></TableCell>
-                  ))}
+                  <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
+                  <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-full" /></TableCell>
                 </TableRow>
               ))
             ) : customers.map((c) => (
               <TableRow key={c.id} className="hover:bg-muted/30 transition-colors">
-                <TableCell className="py-3.5">
+                <TableCell>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 shrink-0">
                       <UserRound className="h-4 w-4 text-primary" />
                     </div>
-                    <span className="font-semibold text-sm">{c.name}</span>
+                    <div>
+                      <span className="font-semibold text-sm">{c.name}</span>
+                      {c.phone && (
+                        <p className="text-xs text-muted-foreground sm:hidden mt-0.5">{c.phone}</p>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
-                <TableCell className="py-3.5 text-sm text-muted-foreground">{c.phone ?? "—"}</TableCell>
-                <TableCell className="py-3.5 text-sm text-muted-foreground">{c.email ?? "—"}</TableCell>
-                <TableCell className="py-3.5">
+                <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">{c.phone ?? "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground hidden md:table-cell">{c.email ?? "—"}</TableCell>
+                <TableCell>
                   {c.discount ? (
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${
                       c.discount.type === "percentage"

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, PackageSearch, UserRound, Building2, X } from "lucide-react";
-import { mockBatches, mockCustomers, mockSuppliers } from "@/lib/mock/data";
+import { getBatches, getCustomers, getSuppliers } from "@/lib/db";
+import { Batch, Customer, Supplier } from "@/lib/types";
 
 interface Result {
   id: string;
@@ -24,9 +25,17 @@ export function SearchModal({ tenant, onClose }: SearchModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // Pre-load data for search
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+    getBatches(tenant).then(setBatches).catch(() => {});
+    getCustomers(tenant).then(setCustomers).catch(() => {});
+    getSuppliers(tenant).then(setSuppliers).catch(() => {});
+  }, [tenant]);
 
   // Press Escape to close
   useEffect(() => {
@@ -40,7 +49,7 @@ export function SearchModal({ tenant, onClose }: SearchModalProps) {
   const q = query.trim().toLowerCase();
 
   const results: Result[] = q.length < 1 ? [] : [
-    ...mockBatches
+    ...batches
       .filter(
         (b) =>
           b.itemName.toLowerCase().includes(q) ||
@@ -55,7 +64,7 @@ export function SearchModal({ tenant, onClose }: SearchModalProps) {
         icon: <PackageSearch className="h-4 w-4" />,
         href: `/${tenant}/inventory`,
       })),
-    ...mockCustomers
+    ...customers
       .filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
@@ -70,7 +79,7 @@ export function SearchModal({ tenant, onClose }: SearchModalProps) {
         icon: <UserRound className="h-4 w-4" />,
         href: `/${tenant}/customers`,
       })),
-    ...mockSuppliers
+    ...suppliers
       .filter((s) => s.name.toLowerCase().includes(q))
       .slice(0, 3)
       .map((s) => ({

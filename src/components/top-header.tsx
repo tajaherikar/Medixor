@@ -4,7 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bell, Search, Menu, LogOut, AlertTriangle, PackageX, ReceiptText } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
-import { mockBatches, mockInvoices } from "@/lib/mock/data";
+import { getBatches, getInvoices } from "@/lib/db";
+import { Batch, Invoice } from "@/lib/types";
 import { SearchModal } from "@/components/search-modal";
 
 const routeLabels: Record<string, { title: string; subtitle: string }> = {
@@ -38,9 +39,18 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Build notifications from mock data
+  // Async data for notifications
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    getBatches(tenant).then(setBatches).catch(() => {});
+    getInvoices(tenant).then(setInvoices).catch(() => {});
+  }, [tenant]);
+
+  // Build notifications from live data
   const notifications = [
-    ...mockBatches
+    ...batches
       .filter((b) => b.status === "expired" && b.availableQty > 0)
       .map((b) => ({
         id: b.id,
@@ -49,7 +59,7 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
         sub: `Batch ${b.batchNumber} · ${b.availableQty} units remaining`,
         type: "error" as const,
       })),
-    ...mockBatches
+    ...batches
       .filter((b) => b.status === "near_expiry" && b.availableQty > 0)
       .map((b) => ({
         id: b.id,
@@ -58,7 +68,7 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
         sub: `Batch ${b.batchNumber} · Exp ${b.expiryDate}`,
         type: "warn" as const,
       })),
-    ...mockInvoices
+    ...invoices
       .filter((inv) => inv.paymentStatus === "unpaid")
       .map((inv) => ({
         id: inv.id,
@@ -67,7 +77,7 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
         sub: `₹${inv.grandTotal.toLocaleString("en-IN")} due ${inv.dueDate}`,
         type: "warn" as const,
       })),
-    ...mockInvoices
+    ...invoices
       .filter((inv) => inv.paymentStatus === "partial")
       .map((inv) => ({
         id: inv.id,

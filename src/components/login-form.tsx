@@ -32,12 +32,16 @@ export function LoginForm() {
 
   function onSubmit(values: LoginValues) {
     setAuthError("");
-    const ok = login(values.email, values.password);
-    if (!ok) {
-      setAuthError("Invalid email or password.");
-      return;
-    }
-    router.replace("/demo/dashboard");
+    login(values.email, values.password).then((ok) => {
+      if (!ok) {
+        setAuthError("Invalid email or password.");
+        return;
+      }
+      // Redirect to the user's own tenant dashboard
+      const stored = JSON.parse(localStorage.getItem("medixor-auth") ?? "{}");
+      const tenantId: string = stored?.state?.user?.tenantId ?? "demo";
+      router.replace(`/${tenantId}/dashboard`);
+    });
   }
 
   return (

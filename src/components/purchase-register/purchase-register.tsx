@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ClipboardList, ChevronDown, ChevronRight, CreditCard, IndianRupee } from "lucide-react";
+import { useAuthStore } from "@/lib/stores";
 import { format, parseISO } from "date-fns";
 
 interface PurchaseRegisterProps { tenant: string; }
@@ -42,6 +43,8 @@ function PayStatus({ status }: { status: string }) {
 export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [payBill, setPayBill] = useState<SupplierBill | null>(null);
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState("bank");
   const [payRef, setPayRef] = useState("");
@@ -121,18 +124,18 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="text-xs">
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead className="text-right">Taxable</TableHead>
-                  <TableHead className="text-right">GST</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead>Status</TableHead>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 text-xs">
+                  <TableHead className="w-8 font-semibold text-xs uppercase tracking-wide text-muted-foreground"></TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Supplier</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden sm:table-cell">Invoice #</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden md:table-cell">Date</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden lg:table-cell">Due Date</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden lg:table-cell">Taxable</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden md:table-cell">GST</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right">Total</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden sm:table-cell">Paid</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden sm:table-cell">Balance</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Status</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -146,18 +149,22 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                         <TableCell className="text-muted-foreground">
                           {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                         </TableCell>
-                        <TableCell className="font-medium text-sm">{bill.supplierName}</TableCell>
-                        <TableCell className="font-mono text-xs">{bill.invoiceNumber}</TableCell>
-                        <TableCell className="text-sm">{format(parseISO(bill.date), "dd MMM yyyy")}</TableCell>
-                        <TableCell className="text-sm">{format(parseISO(bill.dueDate), "dd MMM yyyy")}</TableCell>
-                        <TableCell className="text-right text-sm">{rupees(bill.taxableAmount)}</TableCell>
-                        <TableCell className="text-right text-sm text-blue-600">{rupees(bill.totalGst)}</TableCell>
+                        <TableCell className="font-medium text-sm">
+                          {bill.supplierName}
+                          {/* Show invoice inline on mobile */}
+                          <p className="text-xs text-muted-foreground font-mono sm:hidden mt-0.5">{bill.invoiceNumber}</p>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs hidden sm:table-cell">{bill.invoiceNumber}</TableCell>
+                        <TableCell className="text-sm hidden md:table-cell">{format(parseISO(bill.date), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="text-sm hidden lg:table-cell">{format(parseISO(bill.dueDate), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="text-right text-sm hidden lg:table-cell">{rupees(bill.taxableAmount)}</TableCell>
+                        <TableCell className="text-right text-sm text-blue-600 hidden md:table-cell">{rupees(bill.totalGst)}</TableCell>
                         <TableCell className="text-right font-semibold text-sm">{rupees(bill.grandTotal)}</TableCell>
-                        <TableCell className="text-right text-sm text-green-600">{rupees(bill.paidAmount)}</TableCell>
-                        <TableCell className="text-right font-semibold text-sm text-red-600">{balance > 0 ? rupees(balance) : "—"}</TableCell>
+                        <TableCell className="text-right text-sm text-green-600 hidden sm:table-cell">{rupees(bill.paidAmount)}</TableCell>
+                        <TableCell className="text-right font-semibold text-sm text-red-600 hidden sm:table-cell">{balance > 0 ? rupees(balance) : "—"}</TableCell>
                         <TableCell><PayStatus status={bill.paymentStatus} /></TableCell>
                         <TableCell>
-                          {bill.paymentStatus !== "paid" && (
+                          {bill.paymentStatus !== "paid" && isAdmin && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -180,13 +187,13 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                                 <TableHeader>
                                   <TableRow className="text-xs border-0">
                                     <TableHead className="h-7 pl-0">Item</TableHead>
-                                    <TableHead className="h-7">HSN</TableHead>
-                                    <TableHead className="h-7">Batch</TableHead>
+                                    <TableHead className="h-7 hidden sm:table-cell">HSN</TableHead>
+                                    <TableHead className="h-7 hidden sm:table-cell">Batch</TableHead>
                                     <TableHead className="h-7 text-right">Qty</TableHead>
-                                    <TableHead className="h-7 text-right">Purchase Price</TableHead>
-                                    <TableHead className="h-7 text-right">Taxable</TableHead>
-                                    <TableHead className="h-7 text-right">CGST</TableHead>
-                                    <TableHead className="h-7 text-right">SGST</TableHead>
+                                    <TableHead className="h-7 text-right hidden md:table-cell">Purchase Price</TableHead>
+                                    <TableHead className="h-7 text-right hidden md:table-cell">Taxable</TableHead>
+                                    <TableHead className="h-7 text-right hidden lg:table-cell">CGST</TableHead>
+                                    <TableHead className="h-7 text-right hidden lg:table-cell">SGST</TableHead>
                                     <TableHead className="h-7 text-right">Total</TableHead>
                                   </TableRow>
                                 </TableHeader>
@@ -194,13 +201,13 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                                   {bill.items.map((item, idx) => (
                                     <TableRow key={idx} className="text-xs border-0">
                                       <TableCell className="py-1.5 pl-0 font-medium">{item.itemName}</TableCell>
-                                      <TableCell className="py-1.5 font-mono">{item.hsnCode}</TableCell>
-                                      <TableCell className="py-1.5 font-mono">{item.batchNumber}</TableCell>
+                                      <TableCell className="py-1.5 font-mono hidden sm:table-cell">{item.hsnCode}</TableCell>
+                                      <TableCell className="py-1.5 font-mono hidden sm:table-cell">{item.batchNumber}</TableCell>
                                       <TableCell className="py-1.5 text-right">{item.quantity}</TableCell>
-                                      <TableCell className="py-1.5 text-right">₹{item.purchasePrice}</TableCell>
-                                      <TableCell className="py-1.5 text-right">{rupees(item.taxableAmount)}</TableCell>
-                                      <TableCell className="py-1.5 text-right text-blue-600">{rupees(item.cgst)}</TableCell>
-                                      <TableCell className="py-1.5 text-right text-blue-600">{rupees(item.sgst)}</TableCell>
+                                      <TableCell className="py-1.5 text-right hidden md:table-cell">₹{item.purchasePrice}</TableCell>
+                                      <TableCell className="py-1.5 text-right hidden md:table-cell">{rupees(item.taxableAmount)}</TableCell>
+                                      <TableCell className="py-1.5 text-right text-blue-600 hidden lg:table-cell">{rupees(item.cgst)}</TableCell>
+                                      <TableCell className="py-1.5 text-right text-blue-600 hidden lg:table-cell">{rupees(item.sgst)}</TableCell>
                                       <TableCell className="py-1.5 text-right font-semibold">{rupees(item.lineTotal)}</TableCell>
                                     </TableRow>
                                   ))}

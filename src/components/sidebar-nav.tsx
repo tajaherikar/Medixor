@@ -12,17 +12,23 @@ import {
   Cross,
   X,
   Banknote,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/lib/stores";
 
 const navItems = [
-  { label: "Dashboard",    href: "dashboard",   icon: LayoutDashboard, description: "Overview & alerts" },
-  { label: "Inventory",    href: "inventory",   icon: PackageSearch,   description: "Batch-level stock" },
-  { label: "Suppliers",    href: "suppliers",   icon: Building2,       description: "Stock inward & GRN" },
-  { label: "Billing",      href: "billing",     icon: ReceiptText,     description: "Create invoices" },
-  { label: "Customers",    href: "customers",   icon: UserRound,       description: "Customer accounts" },
-  { label: "Payments",     href: "payments",    icon: Banknote,        description: "Outstanding & collections" },
-  { label: "Reports",      href: "reports",     icon: BarChart3,       description: "Analytics & GST" },
+  { label: "Dashboard",    href: "dashboard",        icon: LayoutDashboard, description: "Overview & alerts" },
+  { label: "Inventory",    href: "inventory",         icon: PackageSearch,   description: "Batch-level stock" },
+  { label: "Suppliers",    href: "suppliers",         icon: Building2,       description: "Stock inward & GRN" },
+  { label: "Billing",      href: "billing",           icon: ReceiptText,     description: "Create invoices" },
+  { label: "Customers",    href: "customers",         icon: UserRound,       description: "Customer accounts" },
+  { label: "Payments",     href: "payments",          icon: Banknote,        description: "Outstanding & collections" },
+  { label: "Reports",      href: "reports",           icon: BarChart3,       description: "Analytics & GST" },
+];
+
+const adminNavItems = [
+  { label: "Team Members", href: "settings/users",   icon: Users,           description: "Manage user access" },
 ];
 
 interface SidebarNavProps {
@@ -33,6 +39,10 @@ interface SidebarNavProps {
 
 function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => void }) {
   const pathname = usePathname();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
+
+  const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : navItems;
 
   return (
     <div className="flex flex-col h-full">
@@ -82,7 +92,7 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
 
       {/* Nav items */}
       <nav className="px-3 flex-1 space-y-0.5">
-        {navItems.map(({ label, href, icon: Icon }) => {
+        {allNavItems.map(({ label, href, icon: Icon }) => {
           const fullPath = `/${tenant}/${href}`;
           const isActive = pathname === fullPath || pathname.startsWith(`${fullPath}/`);
           return (

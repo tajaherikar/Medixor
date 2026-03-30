@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Banknote, CreditCard, IndianRupee, CheckCircle2, Clock, Users } from "lucide-react";
+import { useAuthStore } from "@/lib/stores";
 import { format, parseISO, isAfter } from "date-fns";
 
 interface OutstandingProps { tenant: string; }
@@ -39,6 +40,8 @@ function PayBadge({ status }: { status: string }) {
 
 export function OutstandingTracker({ tenant }: OutstandingProps) {
   const [collectInvoice, setCollectInvoice] = useState<Invoice | null>(null);
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState("cash");
   const [payRef, setPayRef] = useState("");
@@ -142,25 +145,32 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
           {loadingInv ? <div className="p-6"><Skeleton className="h-24 w-full" /></div> : (
             <Table>
               <TableHeader>
-                <TableRow className="text-xs">
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Total Billed</TableHead>
-                  <TableHead className="text-right">Received</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                  <TableHead>Overdue</TableHead>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 text-xs">
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Customer</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden sm:table-cell">Total Billed</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden sm:table-cell">Received</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right">Outstanding</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden md:table-cell">Overdue</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {customerLedger.map((c) => (
                   <TableRow key={c.id} className={`text-sm ${c.outstanding > 0 ? "cursor-pointer hover:bg-muted/40" : ""}`}
                     onClick={() => c.outstanding > 0 && setSelectedCustomer(c.id)}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell className="text-right">{rupees(c.totalBilled)}</TableCell>
-                    <TableCell className="text-right text-green-600">{rupees(c.totalReceived)}</TableCell>
+                    <TableCell className="font-medium">
+                      {c.name}
+                      {c.overdueCount > 0 && (
+                        <span className="ml-2 text-xs bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded-full font-medium md:hidden">
+                          {c.overdueCount} overdue
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right hidden sm:table-cell">{rupees(c.totalBilled)}</TableCell>
+                    <TableCell className="text-right text-green-600 hidden sm:table-cell">{rupees(c.totalReceived)}</TableCell>
                     <TableCell className="text-right font-semibold text-red-600">
                       {c.outstanding > 0 ? rupees(c.outstanding) : <span className="text-green-600">Cleared</span>}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {c.overdueCount > 0 && (
                         <span className="text-xs bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded-full font-medium">
                           {c.overdueCount} overdue
@@ -205,15 +215,15 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="text-xs">
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Invoice Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead>Status</TableHead>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 text-xs">
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Invoice</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Customer</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden md:table-cell">Invoice Date</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden sm:table-cell">Due Date</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden sm:table-cell">Total</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right hidden md:table-cell">Paid</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground text-right">Balance</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Status</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -224,25 +234,33 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
                   return (
                     <TableRow key={inv.id} className="text-sm">
                       <TableCell className="font-mono text-xs font-semibold">{inv.id.toUpperCase()}</TableCell>
-                      <TableCell className="font-medium">{inv.customerName}</TableCell>
-                      <TableCell>{format(parseISO(inv.createdAt), "dd MMM yyyy")}</TableCell>
-                      <TableCell className={overdue ? "text-red-600 font-semibold" : ""}>
+                      <TableCell className="font-medium">
+                        {inv.customerName}
+                        <p className="text-xs text-muted-foreground sm:hidden mt-0.5">
+                          Due: {format(parseISO(inv.dueDate), "dd MMM yyyy")}
+                          {overdue && <span className="text-red-600 ml-1">(overdue)</span>}
+                        </p>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">{format(parseISO(inv.createdAt), "dd MMM yyyy")}</TableCell>
+                      <TableCell className={`hidden sm:table-cell ${overdue ? "text-red-600 font-semibold" : ""}`}>
                         {format(parseISO(inv.dueDate), "dd MMM yyyy")}
                         {overdue && <span className="ml-1 text-xs opacity-75">(overdue)</span>}
                       </TableCell>
-                      <TableCell className="text-right">{rupees(inv.grandTotal)}</TableCell>
-                      <TableCell className="text-right text-green-600">{rupees(inv.paidAmount ?? 0)}</TableCell>
+                      <TableCell className="text-right hidden sm:table-cell">{rupees(inv.grandTotal)}</TableCell>
+                      <TableCell className="text-right text-green-600 hidden md:table-cell">{rupees(inv.paidAmount ?? 0)}</TableCell>
                       <TableCell className="text-right font-semibold text-red-600">{rupees(balance)}</TableCell>
                       <TableCell><PayBadge status={inv.paymentStatus} /></TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs gap-1"
-                          onClick={() => { setCollectInvoice(inv); setPayAmount(String(balance)); }}
-                        >
-                          <Banknote className="h-3 w-3" />Collect
-                        </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => { setCollectInvoice(inv); setPayAmount(String(balance)); }}
+                          >
+                            <Banknote className="h-3 w-3" />Collect
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

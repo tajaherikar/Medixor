@@ -32,6 +32,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Batch } from "@/lib/types";
 import { Search, ArrowUpDown, Package2 } from "lucide-react";
 
+// Extend ColumnMeta to carry responsive className
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData, TValue> {
+    className?: string;
+  }
+}
+
 const columns: ColumnDef<Batch>[] = [
   {
     accessorKey: "itemName",
@@ -51,6 +59,7 @@ const columns: ColumnDef<Batch>[] = [
   {
     accessorKey: "batchNumber",
     header: "Batch No.",
+    meta: { className: "hidden sm:table-cell" },
     cell: ({ row }) => (
       <span className="font-mono text-xs px-2 py-1 bg-muted rounded-md text-foreground">
         {row.original.batchNumber}
@@ -65,13 +74,14 @@ const columns: ColumnDef<Batch>[] = [
   {
     accessorKey: "mrp",
     header: "MRP",
+    meta: { className: "hidden md:table-cell" },
     cell: ({ row }) => (
       <span className="font-semibold text-sm">₹{row.original.mrp.toFixed(2)}</span>
     ),
   },
   {
     accessorKey: "availableQty",
-    header: "Qty Available",
+    header: "Qty",
     cell: ({ row }) => {
       const qty = row.original.availableQty;
       return (
@@ -181,7 +191,7 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
                 {hg.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="cursor-pointer select-none font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto"
+                    className={`cursor-pointer select-none font-semibold text-xs uppercase tracking-wide text-muted-foreground ${header.column.columnDef.meta?.className ?? ""}`}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <span className="flex items-center gap-1">
@@ -201,8 +211,8 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={i}>
-                  {columns.map((_, j) => (
-                    <TableCell key={j} className="py-4">
+                  {columns.map((col, j) => (
+                    <TableCell key={j} className={col.meta?.className ?? ""}>
                       <Skeleton className="h-5 w-full" />
                     </TableCell>
                   ))}
@@ -220,7 +230,7 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} className="hover:bg-muted/30 transition-colors">
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3.5">
+                    <TableCell key={cell.id} className={cell.column.columnDef.meta?.className ?? ""}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}

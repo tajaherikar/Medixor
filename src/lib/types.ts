@@ -10,6 +10,20 @@ export type PaymentStatus = "paid" | "partial" | "unpaid";
 
 export type GstRate = 0 | 5 | 12 | 18 | 28;
 
+// ─── App User ────────────────────────────────────────────────────────────────
+
+export type UserRole = "admin" | "viewer";
+
+export interface AppUser {
+  id: string;
+  tenantId: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: UserRole;
+  createdAt: string;
+}
+
 // ─── Supplier ────────────────────────────────────────────────────────────────
 
 export interface Supplier {

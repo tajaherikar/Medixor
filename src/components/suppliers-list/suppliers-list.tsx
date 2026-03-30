@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Building2, Phone, Mail, Trash2 } from "lucide-react";
+import { useAuthStore } from "@/lib/stores";
 import { Supplier } from "@/lib/types";
 import {
   Dialog,
@@ -42,6 +43,8 @@ interface SuppliersListProps {
 export function SuppliersList({ tenant }: SuppliersListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
 
   const { data: suppliers = [], isLoading } = useQuery<Supplier[]>({
     queryKey: ["suppliers", tenant],
@@ -84,23 +87,25 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
               {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""} registered
             </p>
           </div>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Add Supplier
-          </Button>
+          {isAdmin && (
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add Supplier
+            </Button>
+          )}
         </div>
 
         {/* Table */}
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto">
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">
                 Supplier
               </TableHead>
-              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto">
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden sm:table-cell">
                 Phone
               </TableHead>
-              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3 h-auto">
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden md:table-cell">
                 Email
               </TableHead>
             </TableRow>
@@ -109,24 +114,30 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
             {isLoading
               ? Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 3 }).map((_, j) => (
-                      <TableCell key={j} className="py-4">
-                        <Skeleton className="h-5 w-full" />
-                      </TableCell>
-                    ))}
+                    <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
                   </TableRow>
                 ))
               : suppliers.map((s) => (
                   <TableRow key={s.id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell className="py-3.5">
+                    <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 shrink-0">
                           <Building2 className="h-4 w-4 text-primary" />
                         </div>
-                        <span className="font-semibold text-sm">{s.name}</span>
+                        <div>
+                          <span className="font-semibold text-sm">{s.name}</span>
+                          {/* Show phone inline on mobile */}
+                          {s.phone && (
+                            <p className="text-xs text-muted-foreground sm:hidden flex items-center gap-1 mt-0.5">
+                              <Phone className="h-3 w-3" />{s.phone}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3.5 text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                       {s.phone ? (
                         <span className="flex items-center gap-1.5">
                           <Phone className="h-3.5 w-3.5" />
@@ -134,7 +145,7 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
                         </span>
                       ) : "—"}
                     </TableCell>
-                    <TableCell className="py-3.5 text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                       {s.email ? (
                         <span className="flex items-center gap-1.5">
                           <Mail className="h-3.5 w-3.5" />

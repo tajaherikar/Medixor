@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { useAuthStore } from "@/lib/stores";
 
 interface LineItem {
   batchId: string;
@@ -48,6 +49,8 @@ interface InvoiceBuilderProps {
 export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [customerId, setCustomerId] = useState<string>("");
   const [strategy, setStrategy] = useState<BatchSelectionStrategy>("fefo");
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [customerDiscountType, setCustomerDiscountType] = useState<DiscountType>("percentage");
   const [customerDiscountValue, setCustomerDiscountValue] = useState(0);
@@ -404,8 +407,9 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
       <Button
         onClick={handleSave}
-        disabled={!customerId || lineItems.length === 0 || saved}
+        disabled={!customerId || lineItems.length === 0 || saved || !isAdmin}
         className="w-full sm:w-auto"
+        title={!isAdmin ? "Admin access required" : undefined}
       >
         {saved ? "Invoice Saved ✓" : "Save Invoice"}
       </Button>

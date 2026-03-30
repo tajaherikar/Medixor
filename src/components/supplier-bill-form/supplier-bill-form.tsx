@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { Supplier } from "@/lib/types";
+import { useAuthStore } from "@/lib/stores";
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
 
@@ -59,6 +60,8 @@ interface SupplierBillFormProps {
 
 export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
   const [submitted, setSubmitted] = useState(false);
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
 
   const { data: suppliers = [] } = useQuery<Supplier[]>({
     queryKey: ["suppliers", tenant],
@@ -202,7 +205,8 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
         </CardContent>
       </Card>
 
-      <Button type="submit" disabled={isSubmitting || submitted} className="w-full sm:w-auto">
+      <Button type="submit" disabled={isSubmitting || submitted || !isAdmin} className="w-full sm:w-auto"
+        title={!isAdmin ? "Admin access required" : undefined}>
         {submitted ? "Bill Saved ✓" : isSubmitting ? "Saving..." : "Save Supplier Bill"}
       </Button>
     </form>
