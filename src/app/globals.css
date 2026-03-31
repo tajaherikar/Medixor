@@ -148,3 +148,44 @@
     @apply font-semibold tracking-tight;
   }
 }
+
+/* ─── Print / PDF ─────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 1.5cm;
+  }
+
+  /* Hide sidebar + top-header shell */
+  aside,
+  header {
+    display: none !important;
+  }
+
+  /* Let main fill the page without padding */
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Un-clip scrollable tables so all columns render */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  /* Give Recharts containers a concrete size so SVG renders */
+  .recharts-responsive-container {
+    width: 100% !important;
+    height: 260px !important;
+  }
+
+  /* Remove card shadows for a cleaner print */
+  [class*="shadow"] {
+    box-shadow: none !important;
+  }
+
+  /* Avoid orphaned rows inside tables */
+  tr {
+    break-inside: avoid;
+  }
+}

@@ -2,6 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
+import { InvoicePrintModal } from "./invoice-print-modal";
+import { BillPrintModal } from "./bill-print-modal";
 import {
   BarChart,
   Bar,
@@ -20,8 +22,9 @@ import {
   Package2,
   IndianRupee,
   Users,
+  Printer,
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { Batch, Doctor, Invoice, SupplierBill } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +57,19 @@ function shortName(name: string) {
 
 export function Reports({ tenant }: ReportsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("expiry");
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
+
+  // Date range — default to current month
+  const [dateFrom, setDateFrom] = useState<string>(
+    format(startOfMonth(new Date()), "yyyy-MM-dd")
+  );
+  const [dateTo, setDateTo] = useState<string>(
+    format(endOfMonth(new Date()), "yyyy-MM-dd")
+  );
+
+  // Tabs that respect the date filter
+  const DATE_TABS: Tab[] = ["invoices", "sales", "purchase", "gst", "doctor"];
 
   const { data: batches = [], isLoading: batchLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all"],
@@ -73,6 +89,21 @@ export function Reports({ tenant }: ReportsProps) {
     queryKey: ["doctors", tenant],
     queryFn: () => fetch(`/api/${tenant}/doctors`).then((r) => r.json()),
   });
+  // ─── Date-filtered data ───────────────────────────────────────────────────
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((inv) => {
+      const d = inv.createdAt.slice(0, 10);
+      return d >= dateFrom && d <= dateTo;
+    });
+  }, [invoices, dateFrom, dateTo]);
+
+  const filteredBills = useMemo(() => {
+    return supplierBills.filter((b) => {
+      const d = b.date.slice(0, 10);
+      return d >= dateFrom && d <= dateTo;
+    });
+  }, [supplierBills, dateFrom, dateTo]);
+
   // ─── Derived stats ────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const expired = batches.filter((b) => b.status === "expired");
@@ -185,7 +216,7 @@ export function Reports({ tenant }: ReportsProps) {
   return (
     <div className="space-y-6">
       {/* ── Stat cards ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="print:hidden grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card) => (
           <Card key={card.label} className="rounded-xl border border-border shadow-none">
             <CardContent className="p-5">
@@ -213,7 +244,22 @@ export function Reports({ tenant }: ReportsProps) {
       {/* ── Tabs + content ───────────────────────────────────────────────── */}
       <Card className="rounded-xl border border-border shadow-none overflow-hidden">
         <CardHeader className="pb-0 px-5 pt-5">
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar">
+          {/* Toolbar row: active report label + print button */}
+          <div className="print:hidden flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-foreground">
+              {tabs.find((t) => t.key === activeTab)?.label}
+            </p>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              title="Print or save as PDF"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print / PDF
+            </button>
+          </div>
+          {/* Tab pills */}
+          <div className="print:hidden flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -228,9 +274,53 @@ export function Reports({ tenant }: ReportsProps) {
               </button>
             ))}
           </div>
+          {/* Date range filter — only shown for date-sensitive tabs */}
+          {DATE_TABS.includes(activeTab) && (
+            <div className="print:hidden flex flex-wrap items-center gap-3 mt-3 mb-1 p-3 rounded-lg bg-muted/40 border border-border/50">
+              <label className="text-xs text-muted-foreground font-medium">From</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="text-sm border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <label className="text-xs text-muted-foreground font-medium">To</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="text-sm border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                onClick={() => {
+                  setDateFrom(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+                  setDateTo(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 px-1"
+              >
+                This month
+              </button>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {activeTab === "purchase"
+                  ? `${filteredBills.length} bill${filteredBills.length !== 1 ? "s" : ""}`
+                  : `${filteredInvoices.length} invoice${filteredInvoices.length !== 1 ? "s" : ""}`}
+              </span>
+            </div>
+          )}
         </CardHeader>
 
         <CardContent className="p-5">
+          {/* Print-only header ─────────────────────────────────────── */}
+          <div className="hidden print:block mb-6 pb-4 border-b border-gray-200">
+            <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest">Medixor — Reports</p>
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">
+              {tabs.find((t) => t.key === activeTab)?.label}
+            </h1>
+            <p className="text-xs text-gray-400 mt-1">
+              Generated on {format(new Date(), "dd MMM yyyy, hh:mm a")}
+            </p>
+          </div>
+
           {/* ── Expiry Report ─────────────────────────────────────────── */}
           {activeTab === "expiry" && (
             <div>
@@ -387,9 +477,9 @@ export function Reports({ tenant }: ReportsProps) {
           {activeTab === "invoices" && (
             <div>
               <p className="text-sm text-muted-foreground mb-4">
-                {invoices.length} invoice{invoices.length !== 1 ? "s" : ""} recorded.
+                {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? "s" : ""} in selected range.
               </p>
-              {invoices.length === 0 ? (
+              {filteredInvoices.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-3">
                     <FileText className="h-5 w-5 text-muted-foreground" />
@@ -419,10 +509,11 @@ export function Reports({ tenant }: ReportsProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {invoices.map((inv) => (
+                      {filteredInvoices.map((inv) => (
                         <tr
                           key={inv.id}
-                          className="border-b border-border/50 hover:bg-muted/40 transition-colors"
+                          className="border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer"
+                          onClick={() => setSelectedInvoice(inv)}
                         >
                           <td className="py-3 pr-4 font-mono text-xs text-muted-foreground uppercase">
                             {inv.id}
@@ -455,7 +546,7 @@ export function Reports({ tenant }: ReportsProps) {
                           Total Revenue
                         </td>
                         <td className="py-3 text-right font-bold text-lg text-teal-700">
-                          {rupees(stats.totalRevenue)}
+                          {rupees(filteredInvoices.reduce((s, i) => s + i.grandTotal, 0))}
                         </td>
                       </tr>
                     </tfoot>
@@ -469,7 +560,7 @@ export function Reports({ tenant }: ReportsProps) {
           {activeTab === "sales" && (
             <div>
               <p className="text-sm text-muted-foreground mb-4">
-                Detailed sales register with GST breakdown — {invoices.length} invoice{invoices.length !== 1 ? "s" : ""}.
+                Detailed sales register with GST breakdown — {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? "s" : ""} in selected range.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -481,13 +572,13 @@ export function Reports({ tenant }: ReportsProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {invoices.map((inv) => {
+                    {filteredInvoices.map((inv) => {
                       const hsnSet = [...new Set(inv.lineItems.map((l) => l.hsnCode))].join(", ");
                       const totalCgst = inv.lineItems.reduce((s, l) => s + (l.cgst ?? 0), 0);
                       const totalSgst = inv.lineItems.reduce((s, l) => s + (l.sgst ?? 0), 0);
                       const payMap: Record<string, string> = { paid: "bg-green-100 text-green-700 border-green-200", partial: "bg-amber-100 text-amber-700 border-amber-200", unpaid: "bg-red-100 text-red-700 border-red-200" };
                       return (
-                        <tr key={inv.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
+                        <tr key={inv.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setSelectedInvoice(inv)}>
                           <td className="py-3 pr-4 font-mono text-xs text-muted-foreground uppercase">{inv.id}</td>
                           <td className="py-3 pr-4 font-medium">{inv.customerName}</td>
                           <td className="py-3 pr-4 text-xs text-muted-foreground">{format(parseISO(inv.createdAt), "dd MMM yyyy")}</td>
@@ -509,11 +600,11 @@ export function Reports({ tenant }: ReportsProps) {
                   <tfoot>
                     <tr className="border-t border-border">
                       <td colSpan={4} className="py-3 pr-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Totals</td>
-                      <td className="py-3 pr-4 text-right font-semibold">{rupees(invoices.reduce((s, i) => s + (i.taxableAmount ?? i.subtotal), 0))}</td>
-                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(invoices.reduce((s, i) => s + i.lineItems.reduce((x, l) => x + (l.cgst ?? 0), 0), 0))}</td>
-                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(invoices.reduce((s, i) => s + i.lineItems.reduce((x, l) => x + (l.sgst ?? 0), 0), 0))}</td>
-                      <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(invoices.reduce((s, i) => s + (i.totalGst ?? 0), 0))}</td>
-                      <td className="py-3 pr-4 text-right font-bold text-lg text-teal-700">{rupees(stats.totalRevenue)}</td>
+                      <td className="py-3 pr-4 text-right font-semibold">{rupees(filteredInvoices.reduce((s, i) => s + (i.taxableAmount ?? i.subtotal), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(filteredInvoices.reduce((s, i) => s + i.lineItems.reduce((x, l) => x + (l.cgst ?? 0), 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(filteredInvoices.reduce((s, i) => s + i.lineItems.reduce((x, l) => x + (l.sgst ?? 0), 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(filteredInvoices.reduce((s, i) => s + (i.totalGst ?? 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-bold text-lg text-teal-700">{rupees(filteredInvoices.reduce((s, i) => s + i.grandTotal, 0))}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -526,7 +617,7 @@ export function Reports({ tenant }: ReportsProps) {
           {activeTab === "purchase" && (
             <div>
               <p className="text-sm text-muted-foreground mb-4">
-                Supplier purchase bills with GST breakdown — {supplierBills.length} bill{supplierBills.length !== 1 ? "s" : ""}.
+                Supplier purchase bills with GST breakdown — {filteredBills.length} bill{filteredBills.length !== 1 ? "s" : ""} in selected range.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -538,12 +629,12 @@ export function Reports({ tenant }: ReportsProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {supplierBills.map((bill) => {
+                    {filteredBills.map((bill) => {
                       const totalCgst = bill.items.reduce((s, i) => s + i.cgst, 0);
                       const totalSgst = bill.items.reduce((s, i) => s + i.sgst, 0);
                       const payMap: Record<string, string> = { paid: "bg-green-100 text-green-700 border-green-200", partial: "bg-amber-100 text-amber-700 border-amber-200", unpaid: "bg-red-100 text-red-700 border-red-200" };
                       return (
-                        <tr key={bill.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
+                        <tr key={bill.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setSelectedBill(bill)}>
                           <td className="py-3 pr-4 font-medium">{bill.supplierName}</td>
                           <td className="py-3 pr-4 font-mono text-xs">{bill.invoiceNumber}</td>
                           <td className="py-3 pr-4 text-xs text-muted-foreground">{format(parseISO(bill.date), "dd MMM yyyy")}</td>
@@ -564,11 +655,11 @@ export function Reports({ tenant }: ReportsProps) {
                   <tfoot>
                     <tr className="border-t border-border">
                       <td colSpan={3} className="py-3 pr-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Totals</td>
-                      <td className="py-3 pr-4 text-right font-semibold">{rupees(supplierBills.reduce((s, b) => s + b.taxableAmount, 0))}</td>
-                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(supplierBills.reduce((s, b) => s + b.items.reduce((x, i) => x + i.cgst, 0), 0))}</td>
-                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(supplierBills.reduce((s, b) => s + b.items.reduce((x, i) => x + i.sgst, 0), 0))}</td>
-                      <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(supplierBills.reduce((s, b) => s + b.totalGst, 0))}</td>
-                      <td className="py-3 pr-4 text-right font-bold text-lg">{rupees(supplierBills.reduce((s, b) => s + b.grandTotal, 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold">{rupees(filteredBills.reduce((s, b) => s + b.taxableAmount, 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(filteredBills.reduce((s, b) => s + b.items.reduce((x, i) => x + i.cgst, 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(filteredBills.reduce((s, b) => s + b.items.reduce((x, i) => x + i.sgst, 0), 0))}</td>
+                      <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(filteredBills.reduce((s, b) => s + b.totalGst, 0))}</td>
+                      <td className="py-3 pr-4 text-right font-bold text-lg">{rupees(filteredBills.reduce((s, b) => s + b.grandTotal, 0))}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -581,7 +672,7 @@ export function Reports({ tenant }: ReportsProps) {
           {activeTab === "gst" && (() => {
             // Aggregate output GST (from sales invoices)
             const outputGst: Record<string, { taxable: number; cgst: number; sgst: number; total: number }> = {};
-            for (const inv of invoices) {
+            for (const inv of filteredInvoices) {
               for (const l of inv.lineItems) {
                 const key = `${l.hsnCode ?? "—"}|${l.gstRate ?? 0}%`;
                 if (!outputGst[key]) outputGst[key] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
@@ -593,7 +684,7 @@ export function Reports({ tenant }: ReportsProps) {
             }
             // Aggregate input GST (from purchase bills)
             const inputGst: Record<string, { taxable: number; cgst: number; sgst: number; total: number }> = {};
-            for (const bill of supplierBills) {
+            for (const bill of filteredBills) {
               for (const item of bill.items) {
                 const key = `${item.hsnCode}|${item.gstRate}%`;
                 if (!inputGst[key]) inputGst[key] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
@@ -691,7 +782,7 @@ export function Reports({ tenant }: ReportsProps) {
             const byId: Record<string, Invoice[]> = {};
             const byName: Record<string, Invoice[]> = {};
             const walkIn: Invoice[] = [];
-            for (const inv of invoices) {
+            for (const inv of filteredInvoices) {
               if (inv.referredById) {
                 if (!byId[inv.referredById]) byId[inv.referredById] = [];
                 byId[inv.referredById].push(inv);
@@ -842,6 +933,17 @@ export function Reports({ tenant }: ReportsProps) {
           })()}
         </CardContent>
       </Card>
+
+      <InvoicePrintModal
+        invoice={selectedInvoice}
+        tenant={tenant}
+        onClose={() => setSelectedInvoice(null)}
+      />
+      <BillPrintModal
+        bill={selectedBill}
+        tenant={tenant}
+        onClose={() => setSelectedBill(null)}
+      />
     </div>
   );
 }
