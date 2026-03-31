@@ -10,6 +10,8 @@ export type PaymentStatus = "paid" | "partial" | "unpaid";
 
 export type GstRate = 0 | 5 | 12 | 18 | 28;
 
+export type DoctorType = "doctor" | "lab" | "consultant";
+
 // ─── App User ────────────────────────────────────────────────────────────────
 
 export type UserRole = "admin" | "viewer";
@@ -32,6 +34,18 @@ export interface Supplier {
   phone?: string;
   email?: string;
   createdAt: string; // ISO date string
+}
+
+// ─── Doctor (Reference Person) ───────────────────────────────────────────────
+
+export interface Doctor {
+  id: string;
+  tenantId: string;
+  name: string;
+  type: DoctorType;
+  phone?: string;
+  targetAmount: number; // monthly billing target in ₹
+  createdAt: string;
 }
 
 // ─── Batch ───────────────────────────────────────────────────────────────────
@@ -145,6 +159,8 @@ export interface Invoice {
   tenantId: string;
   customerId: string;
   customerName: string;
+  referredById?: string;        // Doctor ID (linked to doctors table)
+  referredBy?: string;          // Doctor / Lab / Consultant name (free-text fallback)
   lineItems: InvoiceLineItem[];
   customerDiscountType?: DiscountType;
   customerDiscountValue?: number;

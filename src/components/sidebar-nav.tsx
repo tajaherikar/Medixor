@@ -13,6 +13,7 @@ import {
   X,
   Banknote,
   Users,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores";
@@ -23,6 +24,7 @@ const navItems = [
   { label: "Suppliers",    href: "suppliers",         icon: Building2,       description: "Stock inward & GRN" },
   { label: "Billing",      href: "billing",           icon: ReceiptText,     description: "Create invoices" },
   { label: "Customers",    href: "customers",         icon: UserRound,       description: "Customer accounts" },
+  { label: "Doctors",      href: "doctors",           icon: Stethoscope,     description: "Reference persons & targets" },
   { label: "Payments",     href: "payments",          icon: Banknote,        description: "Outstanding & collections" },
   { label: "Reports",      href: "reports",           icon: BarChart3,       description: "Analytics & GST" },
 ];

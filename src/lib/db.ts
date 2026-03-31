@@ -8,7 +8,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
-import { Batch, Customer, Supplier, Invoice, SupplierBill, Payment, AppUser } from "@/lib/types";
+import { Batch, Customer, Doctor, Supplier, Invoice, SupplierBill, Payment, AppUser } from "@/lib/types";
 import { getInventoryStatus } from "@/lib/batch-logic";
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
@@ -171,5 +171,22 @@ export async function updateUser(id: string, updates: Partial<Omit<AppUser, "id"
 
 export async function deleteUser(id: string): Promise<void> {
   const { error } = await supabase.from("users").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ─── Doctors ──────────────────────────────────────────────────────────────────────────────
+
+export async function getDoctors(tenantId: string): Promise<Doctor[]> {
+  const { data, error } = await supabase
+    .from("doctors")
+    .select("*")
+    .eq("tenantId", tenantId)
+    .order("createdAt", { ascending: false });
+  if (error) throw error;
+  return data as Doctor[];
+}
+
+export async function addDoctor(d: Doctor): Promise<void> {
+  const { error } = await supabase.from("doctors").insert(d);
   if (error) throw error;
 }

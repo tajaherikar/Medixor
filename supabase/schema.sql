@@ -53,6 +53,7 @@ create table if not exists invoices (
   "tenantId"               text not null,
   "customerId"             text,
   "customerName"           text not null,
+  "referredBy"             text,
   "lineItems"              jsonb not null default '[]',
   "customerDiscountType"   text,
   "customerDiscountValue"  numeric,
@@ -103,6 +104,22 @@ create table if not exists payments (
 );
 create index if not exists payments_tenantId_idx on payments ("tenantId");
 create index if not exists payments_partyId_idx  on payments ("partyId");
+
+-- ─── doctors ──────────────────────────────────────────────────────────────────
+create table if not exists doctors (
+  id              text primary key,
+  "tenantId"      text not null,
+  name            text not null,
+  type            text not null default 'doctor',  -- doctor | lab | consultant
+  phone           text,
+  "targetAmount"  numeric not null default 0,
+  "createdAt"     timestamptz not null default now()
+);
+create index if not exists doctors_tenantId_idx on doctors ("tenantId");
+
+-- Migration: add referredById to existing invoices table (safe to re-run)
+alter table invoices add column if not exists "referredById" text;
+create index if not exists invoices_referredById_idx on invoices ("referredById");
 
 -- ─── users ──────────────────────────────────────────────────────────────────────
 create table if not exists users (

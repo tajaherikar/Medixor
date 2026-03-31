@@ -16,6 +16,8 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
+  _hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -24,6 +26,8 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      _hasHydrated: false,
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
       login: async (email, password) => {
         const res = await fetch("/api/auth/login", {
           method: "POST",
@@ -37,7 +41,12 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => set({ user: null }),
     }),
-    { name: "medixor-auth" }
+    {
+      name: "medixor-auth",
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
+    }
   )
 );
 

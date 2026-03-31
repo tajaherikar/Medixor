@@ -19,9 +19,10 @@ import {
   FileText,
   Package2,
   IndianRupee,
+  Users,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { Batch, Invoice, SupplierBill } from "@/lib/types";
+import { Batch, Doctor, Invoice, SupplierBill } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryBadge, StatusBadge } from "@/components/ui/expiry-badge";
@@ -30,7 +31,7 @@ interface ReportsProps {
   tenant: string;
 }
 
-type Tab = "expiry" | "valuation" | "movement" | "invoices" | "sales" | "purchase" | "gst";
+type Tab = "expiry" | "valuation" | "movement" | "invoices" | "sales" | "purchase" | "gst" | "doctor";
 
 const tabs: { key: Tab; label: string }[] = [
   { key: "expiry",    label: "Expiry Report" },
@@ -40,6 +41,7 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "sales",     label: "Sales Register" },
   { key: "purchase",  label: "Purchase Register" },
   { key: "gst",       label: "GST Summary" },
+  { key: "doctor",    label: "Doctor Reference" },
 ];
 
 function rupees(n: number) {
@@ -67,7 +69,10 @@ export function Reports({ tenant }: ReportsProps) {
     queryKey: ["supplier-bills", tenant],
     queryFn: () => fetch(`/api/${tenant}/supplier-bills`).then((r) => r.json()),
   });
-
+  const { data: doctors = [], isLoading: doctorLoading } = useQuery<Doctor[]>({
+    queryKey: ["doctors", tenant],
+    queryFn: () => fetch(`/api/${tenant}/doctors`).then((r) => r.json()),
+  });
   // ─── Derived stats ────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const expired = batches.filter((b) => b.status === "expired");
@@ -116,7 +121,7 @@ export function Reports({ tenant }: ReportsProps) {
     });
   }, [batches]);
 
-  const isLoading = batchLoading || invoiceLoading || billsLoading;
+  const isLoading = batchLoading || invoiceLoading || billsLoading || doctorLoading;
 
   if (isLoading) {
     return (
@@ -674,6 +679,162 @@ export function Reports({ tenant }: ReportsProps) {
                         );
                       })}
                     </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Doctor Reference ──────────────────────────────────── */}
+          {activeTab === "doctor" && (() => {
+            // Group invoices by doctor ID (new) or free-text name (legacy fallback)
+            const byId: Record<string, Invoice[]> = {};
+            const byName: Record<string, Invoice[]> = {};
+            const walkIn: Invoice[] = [];
+            for (const inv of invoices) {
+              if (inv.referredById) {
+                if (!byId[inv.referredById]) byId[inv.referredById] = [];
+                byId[inv.referredById].push(inv);
+              } else if (inv.referredBy?.trim()) {
+                const k = inv.referredBy.trim();
+                if (!byName[k]) byName[k] = [];
+                byName[k].push(inv);
+              } else {
+                walkIn.push(inv);
+              }
+            }
+            // Doctor rows from doctors table (includes targets)
+            const doctorRows = doctors.map((d) => {
+              const invList = byId[d.id] ?? [];
+              const actual = invList.reduce((s, i) => s + i.grandTotal, 0);
+              const pct = d.targetAmount > 0 ? (actual / d.targetAmount) * 100 : null as number | null;
+              return { id: d.id as string | null, name: d.name, type: d.type as string, phone: d.phone, target: d.targetAmount, actual, count: invList.length, pct };
+            }).sort((a, b) => b.actual - a.actual);
+            // Legacy free-text rows (no doctor ID)
+            const legacyRows = Object.entries(byName).map(([name, invList]) => ({
+              id: null as string | null, name, type: "legacy", phone: undefined as string | undefined,
+              target: 0, actual: invList.reduce((s, i) => s + i.grandTotal, 0), count: invList.length, pct: null as number | null,
+            })).sort((a, b) => b.actual - a.actual);
+            const allRows = [
+              ...doctorRows,
+              ...legacyRows,
+              ...(walkIn.length > 0 ? [{ id: null as string | null, name: "Direct / Walk-in", type: "walkin", phone: undefined as string | undefined, target: 0, actual: walkIn.reduce((s, i) => s + i.grandTotal, 0), count: walkIn.length, pct: null as number | null }] : []),
+            ];
+            const totalTarget = doctorRows.reduce((s, r) => s + r.target, 0);
+            const totalReferredActual = doctorRows.reduce((s, r) => s + r.actual, 0) + legacyRows.reduce((s, r) => s + r.actual, 0);
+            const chartData = doctorRows.filter((d) => d.target > 0).map((d) => ({ name: d.name.split(" ").slice(0, 2).join(" "), target: d.target, actual: d.actual }));
+            const typeBadge: Record<string, string> = {
+              doctor: "bg-blue-100 text-blue-700",
+              lab: "bg-purple-100 text-purple-700",
+              consultant: "bg-teal-100 text-teal-700",
+              legacy: "bg-gray-100 text-gray-600",
+              walkin: "bg-gray-100 text-gray-400",
+            };
+            // legacy: totalReferredRevenue kept for compat
+            const totalReferredRevenue = totalReferredActual;
+            const rows = allRows; // compat alias — suppress unused warning
+            void rows; void totalReferredRevenue;
+            return (
+              <div className="space-y-6">
+                {/* Summary cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { label: "Registered Doctors", value: String(doctors.length), cls: "text-violet-700", icon: Users, iconBg: "bg-violet-100", iconCls: "text-violet-600" },
+                    { label: "Referred Revenue", value: rupees(totalReferredActual), cls: "text-teal-700", icon: IndianRupee, iconBg: "bg-teal-100", iconCls: "text-teal-600" },
+                    { label: "Total Monthly Target", value: totalTarget > 0 ? rupees(totalTarget) : "—", cls: "text-amber-700", icon: TrendingUp, iconBg: "bg-amber-100", iconCls: "text-amber-600" },
+                    {
+                      label: "Overall Achievement",
+                      value: totalTarget > 0 ? `${Math.round((totalReferredActual / totalTarget) * 100)}%` : "—",
+                      cls: totalTarget > 0 ? (totalReferredActual >= totalTarget ? "text-green-700" : totalReferredActual >= totalTarget * 0.7 ? "text-amber-600" : "text-red-600") : "text-muted-foreground",
+                      icon: FileText, iconBg: "bg-green-100", iconCls: "text-green-600",
+                    },
+                  ].map(({ label, value, cls, icon: Icon, iconBg, iconCls }) => (
+                    <Card key={label} className="border border-border shadow-none">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                            <p className={`text-xl font-bold ${cls}`}>{value}</p>
+                          </div>
+                          <div className={`flex items-center justify-center w-9 h-9 rounded-lg shrink-0 ${iconBg}`}>
+                            <Icon className={`h-4 w-4 ${iconCls}`} />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Target vs Actual bar chart */}
+                {chartData.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-3">Target vs Actual Revenue</p>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={chartData} barCategoryGap="30%">
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                        <YAxis tickFormatter={(v) => `₹${((v as number) / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={52} />
+                        <Tooltip formatter={(v, name) => [rupees(v as number), name === "target" ? "Target" : "Actual"]} contentStyle={tooltipStyle} />
+                        <Legend formatter={(v) => v === "target" ? "Target" : "Actual"} wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }} />
+                        <Bar dataKey="target" fill="oklch(0.75 0.12 60)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="actual" fill="oklch(0.52 0.15 196)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Reference breakdown table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {["Reference Person", "Type", "Phone", "Monthly Target", "Actual Revenue", "Achievement", "Bills"].map((h, i) => (
+                          <th key={h} className={`text-xs font-semibold text-muted-foreground py-2.5 uppercase tracking-wide ${i >= 3 ? "text-right pr-0" : "text-left pr-4"} ${i < 6 ? "pr-4" : ""}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allRows.map((row, idx) => {
+                        const pct = row.pct;
+                        const pctColor = pct === null ? "" : pct >= 100 ? "text-green-700" : pct >= 70 ? "text-amber-600" : "text-red-600";
+                        const barColor = pct === null ? "bg-muted" : pct >= 100 ? "bg-green-500" : pct >= 70 ? "bg-amber-400" : "bg-red-400";
+                        return (
+                          <tr key={row.id ?? row.name + idx} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
+                            <td className="py-3 pr-4 font-medium">{row.name}</td>
+                            <td className="py-3 pr-4">
+                              <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${typeBadge[row.type] ?? typeBadge.legacy}`}>
+                                {row.type === "walkin" ? "Walk-in" : row.type === "legacy" ? "Unregistered" : row.type.charAt(0).toUpperCase() + row.type.slice(1)}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-4 text-xs text-muted-foreground">{row.phone ?? "—"}</td>
+                            <td className="py-3 pr-4 text-right">
+                              {row.target > 0 ? rupees(row.target) : <span className="text-muted-foreground">—</span>}
+                            </td>
+                            <td className="py-3 pr-4 text-right font-semibold text-teal-700">{rupees(row.actual)}</td>
+                            <td className="py-3 pr-4 text-right">
+                              {pct !== null ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className={`text-xs font-semibold ${pctColor}`}>{Math.round(pct)}%</span>
+                                  <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                  </div>
+                                </div>
+                              ) : <span className="text-xs text-muted-foreground">—</span>}
+                            </td>
+                            <td className="py-3 text-right">{row.count}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-border">
+                        <td colSpan={3} className="py-3 pr-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Totals</td>
+                        <td className="py-3 pr-4 text-right font-semibold">{totalTarget > 0 ? rupees(totalTarget) : "—"}</td>
+                        <td className="py-3 pr-4 text-right font-bold text-lg text-teal-700">{rupees(allRows.reduce((s, r) => s + r.actual, 0))}</td>
+                        <td></td>
+                        <td className="py-3 text-right font-semibold">{allRows.reduce((s, r) => s + r.count, 0)}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>

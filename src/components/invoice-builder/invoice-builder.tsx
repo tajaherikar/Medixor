@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { addDays } from "date-fns";
-import { Customer, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus } from "@/lib/types";
+import { Customer, Doctor, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus } from "@/lib/types";
 import { calcLineTotal, calcGrandTotal } from "@/lib/discount";
 import { BatchSelector, SelectedBatchAllocation } from "@/components/batch-selector/batch-selector";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [referredBy, setReferredBy] = useState("");
+  const [referredById, setReferredById] = useState("");
   const [customerDiscountType, setCustomerDiscountType] = useState<DiscountType>("percentage");
   const [customerDiscountValue, setCustomerDiscountValue] = useState(0);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("unpaid");
@@ -66,6 +68,11 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       if (!res.ok) throw new Error("Failed to fetch customers");
       return res.json();
     },
+  });
+
+  const { data: doctors = [] } = useQuery<Doctor[]>({
+    queryKey: ["doctors", tenant],
+    queryFn: () => fetch(`/api/${tenant}/doctors`).then((r) => r.json()),
   });
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
@@ -157,6 +164,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
           lineTotalWithGst: lt + gstAmt,
         };
       }),
+      ...(referredBy.trim() && { referredBy: referredBy.trim() }),
+      ...(referredById && { referredById }),
       customerDiscountType,
       customerDiscountValue,
       subtotal,
@@ -180,6 +189,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       setCustomerDiscountValue(0);
       setPaymentStatus("unpaid");
       setPaidAmount(0);
+      setReferredBy("");
+      setReferredById("");
       setSaved(false);
     }, 1500);
   }
@@ -197,6 +208,32 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
             <SelectContent>
               {customers.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Reference (Doctor / Lab / Consultant)</Label>
+          <Select
+            value={referredById || "__none__"}
+            onValueChange={(v) => {
+              if (v === "__none__") { setReferredById(""); setReferredBy(""); return; }
+              setReferredById(v);
+              const doc = doctors.find((d) => d.id === v);
+              setReferredBy(doc?.name ?? "");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="No reference" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">No reference / Walk-in</SelectItem>
+              {doctors.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.name}{" "}
+                  <span className="text-muted-foreground text-xs capitalize">({d.type})</span>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>

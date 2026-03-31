@@ -13,15 +13,16 @@ interface TenantShellProps {
 
 export function TenantShell({ tenant, children }: TenantShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user } = useAuthStore();
+  const { user, _hasHydrated } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
-    if (!user) {
+    if (_hasHydrated && !user) {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [user, _hasHydrated, router]);
 
+  if (!_hasHydrated) return null;
   if (!user) return null;
 
   return (
