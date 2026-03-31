@@ -108,6 +108,7 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
             <Link
               key={href}
               href={fullPath}
+              prefetch={true}
               onClick={onClose}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 group"
