@@ -39,7 +39,11 @@ export const useAuthStore = create<AuthState>()(
         set({ user });
         return true;
       },
-      logout: () => set({ user: null }),
+      logout: () => {
+        set({ user: null });
+        // Clear persisted settings so the next login starts with a clean slate
+        useSettingsStore.getState().resetSettings();
+      },
     }),
     {
       name: "medixor-auth",
@@ -124,6 +128,7 @@ export const useBillingStore = create<BillingState>((set) => ({
 interface SettingsState {
   settings: BusinessSettings;
   updateSettings: (patch: Partial<BusinessSettings>) => void;
+  resetSettings: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -132,6 +137,7 @@ export const useSettingsStore = create<SettingsState>()(
       settings: { ...defaultBusinessSettings },
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
+      resetSettings: () => set({ settings: { ...defaultBusinessSettings } }),
     }),
     { name: "medixor-settings" }
   )
