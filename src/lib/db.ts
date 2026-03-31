@@ -28,6 +28,11 @@ export async function addSupplier(s: Supplier): Promise<void> {
   if (error) throw error;
 }
 
+export async function updateSupplier(id: string, updates: Partial<Supplier>): Promise<void> {
+  const { error } = await supabase.from("suppliers").update(updates).eq("id", id);
+  if (error) throw error;
+}
+
 // ─── Batches / Inventory ──────────────────────────────────────────────────────
 
 export async function getBatches(tenantId: string): Promise<Batch[]> {
@@ -67,6 +72,11 @@ export async function getCustomers(tenantId: string): Promise<Customer[]> {
 
 export async function addCustomer(c: Customer): Promise<void> {
   const { error } = await supabase.from("customers").insert(c);
+  if (error) throw error;
+}
+
+export async function updateCustomer(id: string, updates: Partial<Customer>): Promise<void> {
+  const { error } = await supabase.from("customers").update(updates).eq("id", id);
   if (error) throw error;
 }
 
@@ -211,5 +221,10 @@ export async function getDoctors(tenantId: string): Promise<Doctor[]> {
 
 export async function addDoctor(d: Doctor): Promise<void> {
   const { error } = await supabase.from("doctors").insert(d);
+  if (error) throw error;
+}
+
+export async function updateDoctor(id: string, updates: Partial<Doctor>): Promise<void> {
+  const { error } = await supabase.from("doctors").update(updates).eq("id", id);
   if (error) throw error;
 }

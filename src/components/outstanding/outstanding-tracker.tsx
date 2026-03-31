@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Invoice, Customer } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Banknote, CreditCard, IndianRupee, CheckCircle2, Clock, Users } from "lucide-react";
-import { useAuthStore } from "@/lib/stores";
+import { Banknote, CreditCard, IndianRupee, CheckCircle2, Clock, Users, MessageCircle, Mail } from "lucide-react";
+import { useAuthStore, useSettingsStore } from "@/lib/stores";
 import { format, parseISO, isAfter } from "date-fns";
 
 interface OutstandingProps { tenant: string; }
@@ -42,6 +42,7 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
   const [collectInvoice, setCollectInvoice] = useState<Invoice | null>(null);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
+  const businessName = useSettingsStore((s) => s.settings.businessName) || "Us";
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState("cash");
   const [payRef, setPayRef] = useState("");
@@ -58,6 +59,11 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
     queryKey: ["customers", tenant],
     queryFn: () => fetch(`/api/${tenant}/customers`).then((r) => r.json()),
   });
+
+  const customerMap = useMemo(
+    () => new Map(customers.map((c) => [c.id, c])),
+    [customers]
+  );
 
   const collectMutation = useMutation({
     mutationFn: async () => {
@@ -231,6 +237,46 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
                 {filteredInvoices.map((inv) => {
                   const balance = inv.grandTotal - (inv.paidAmount ?? 0);
                   const overdue = inv.dueDate ? isAfter(new Date(), parseISO(inv.dueDate)) : false;
+                  const customer = customerMap.get(inv.customerId);
+                  const invoiceDate = format(parseISO(inv.createdAt), "dd MMM yyyy");
+                  const waMsg = [
+                    `Dear ${inv.customerName},`,
+                    ``,
+                    `Reminder for pending invoice:`,
+                    ``,
+                    `Invoice: ${inv.id.toUpperCase()}`,
+                    `Date: ${invoiceDate}`,
+                    `Amount Due: \u20B9${balance.toLocaleString("en-IN")}`,
+                    ``,
+                    `Kindly arrange payment at your earliest convenience.`,
+                    ``,
+                    `If already paid, please ignore.`,
+                    ``,
+                    `\u2013 ${businessName}`,
+                  ].join("\n");
+                  const emailBody = [
+                    `Dear ${inv.customerName},`,
+                    ``,
+                    `This is a gentle reminder regarding the following invoice:`,
+                    ``,
+                    `Invoice No: ${inv.id.toUpperCase()}`,
+                    `Invoice Date: ${invoiceDate}`,
+                    `Total Amount: \u20B9${inv.grandTotal.toLocaleString("en-IN")}`,
+                    `Outstanding Balance: \u20B9${balance.toLocaleString("en-IN")}`,
+                    ``,
+                    `We kindly request you to process the payment at your earliest convenience.`,
+                    ``,
+                    `If the payment has already been made, please disregard this message.`,
+                    ``,
+                    `Thank you for your continued trust in us.`,
+                    ``,
+                    `Warm regards,`,
+                    businessName,
+                  ].join("\n");
+                  const waPhone = customer?.phone?.replace(/\D/g, "") ?? "";
+                  const waNum = waPhone.length === 10 ? `91${waPhone}` : waPhone.length > 10 ? waPhone : "";
+                  const waUrl = `https://wa.me/${waNum}?text=${encodeURIComponent(waMsg)}`;
+                  const emailUrl = `mailto:${customer?.email ?? ""}?subject=${encodeURIComponent(`Payment Reminder \u2014 Invoice ${inv.id.toUpperCase()}`)}&body=${encodeURIComponent(emailBody)}`;
                   return (
                     <TableRow key={inv.id} className="text-sm">
                       <TableCell className="font-mono text-xs font-semibold">{inv.id.toUpperCase()}</TableCell>
@@ -251,16 +297,28 @@ export function OutstandingTracker({ tenant }: OutstandingProps) {
                       <TableCell className="text-right font-semibold text-red-600">{rupees(balance)}</TableCell>
                       <TableCell><PayBadge status={inv.paymentStatus} /></TableCell>
                       <TableCell>
-                        {isAdmin && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs gap-1"
-                            onClick={() => { setCollectInvoice(inv); setPayAmount(String(balance)); }}
-                          >
-                            <Banknote className="h-3 w-3" />Collect
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          <a href={waUrl} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50">
+                              <MessageCircle className="h-3 w-3" /><span className="hidden sm:inline">WA</span>
+                            </Button>
+                          </a>
+                          <a href={emailUrl}>
+                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-blue-700 border-blue-300 hover:bg-blue-50">
+                              <Mail className="h-3 w-3" /><span className="hidden sm:inline">Mail</span>
+                            </Button>
+                          </a>
+                          {isAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => { setCollectInvoice(inv); setPayAmount(String(balance)); }}
+                            >
+                              <Banknote className="h-3 w-3" />Collect
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

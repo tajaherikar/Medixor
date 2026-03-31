@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import {
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Batch } from "@/lib/types";
+import { useSettingsStore } from "@/lib/stores";
 import { Search, ArrowUpDown, Package2 } from "lucide-react";
 
 // Extend ColumnMeta to carry responsive className
@@ -41,79 +42,6 @@ declare module "@tanstack/react-table" {
   }
 }
 
-const columns: ColumnDef<Batch>[] = [
-  {
-    accessorKey: "itemName",
-    header: "Item Name",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2.5">
-        <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10 shrink-0">
-          <Package2 className="h-4 w-4 text-primary" />
-        </div>
-        <div>
-          <p className="font-semibold text-sm leading-tight">{row.original.itemName}</p>
-          <p className="text-xs text-muted-foreground leading-tight">{row.original.supplierName}</p>
-        </div>
-      </div>
-    ),
-  },
-  {
-    accessorKey: "batchNumber",
-    header: "Batch No.",
-    meta: { className: "hidden sm:table-cell" },
-    cell: ({ row }) => (
-      <span className="font-mono text-xs px-2 py-1 bg-muted rounded-md text-foreground">
-        {row.original.batchNumber}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "expiryDate",
-    header: "Expiry Date",
-    cell: ({ row }) => <ExpiryBadge expiryDate={row.original.expiryDate} />,
-  },
-  {
-    accessorKey: "mrp",
-    header: "MRP",
-    meta: { className: "hidden md:table-cell" },
-    cell: ({ row }) => (
-      <span className="font-semibold text-sm">₹{row.original.mrp.toFixed(2)}</span>
-    ),
-  },
-  {
-    accessorKey: "availableQty",
-    header: "Qty",
-    cell: ({ row }) => {
-      const qty = row.original.availableQty;
-      return (
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-sm font-bold tabular-nums ${
-              qty === 0
-                ? "text-muted-foreground"
-                : qty < 20
-                ? "text-amber-600"
-                : "text-foreground"
-            }`}
-          >
-            {qty}
-          </span>
-          {qty < 20 && qty > 0 && (
-            <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-sm border border-amber-200">
-              Low
-            </span>
-          )}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
-  },
-];
-
 interface InventoryTableProps {
   tenant: string;
 }
@@ -122,23 +50,103 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
   const searchParams = useSearchParams();
   const defaultStatus = searchParams?.get("status") ?? "all";
   const defaultSearch = searchParams?.get("search") ?? "";
+  const lowStockThreshold = useSettingsStore((s) => s.settings.lowStockThreshold ?? 20);
+
+  const columns = useMemo<ColumnDef<Batch>[]>(() => [
+    {
+      accessorKey: "itemName",
+      header: "Item Name",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10 shrink-0">
+            <Package2 className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="font-semibold text-sm leading-tight">{row.original.itemName}</p>
+            <p className="text-xs text-muted-foreground leading-tight">{row.original.supplierName}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "batchNumber",
+      header: "Batch No.",
+      meta: { className: "hidden sm:table-cell" },
+      cell: ({ row }) => (
+        <span className="font-mono text-xs px-2 py-1 bg-muted rounded-md text-foreground">
+          {row.original.batchNumber}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "expiryDate",
+      header: "Expiry Date",
+      cell: ({ row }) => <ExpiryBadge expiryDate={row.original.expiryDate} />,
+    },
+    {
+      accessorKey: "mrp",
+      header: "MRP",
+      meta: { className: "hidden md:table-cell" },
+      cell: ({ row }) => (
+        <span className="font-semibold text-sm">₹{row.original.mrp.toFixed(2)}</span>
+      ),
+    },
+    {
+      accessorKey: "availableQty",
+      header: "Qty",
+      cell: ({ row }) => {
+        const qty = row.original.availableQty;
+        return (
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-sm font-bold tabular-nums ${
+                qty === 0
+                  ? "text-muted-foreground"
+                  : qty < lowStockThreshold
+                  ? "text-orange-600"
+                  : "text-foreground"
+              }`}
+            >
+              {qty}
+            </span>
+            {qty < lowStockThreshold && qty > 0 && (
+              <span className="text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-sm border border-orange-200">
+                Low
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+  ], [lowStockThreshold]);
 
   const [search, setSearch] = useState(defaultSearch);
   const [statusFilter, setStatusFilter] = useState(defaultStatus);
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const params = new URLSearchParams();
-  if (statusFilter !== "all") params.set("status", statusFilter);
+  // "low_stock" is a client-side filter; don't send it to the API
+  if (statusFilter !== "all" && statusFilter !== "low_stock") params.set("status", statusFilter);
   if (search) params.set("search", search);
 
-  const { data: batches = [], isLoading } = useQuery<Batch[]>({
-    queryKey: ["inventory", tenant, statusFilter, search],
+  const { data: rawBatches = [], isLoading } = useQuery<Batch[]>({
+    queryKey: ["inventory", tenant, statusFilter === "low_stock" ? "all" : statusFilter, search],
     queryFn: async () => {
       const res = await fetch(`/api/${tenant}/inventory?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch inventory");
       return res.json();
     },
   });
+
+  // Client-side low stock filter: show only batches with qty < threshold
+  const batches = statusFilter === "low_stock"
+    ? rawBatches.filter((b) => b.availableQty < lowStockThreshold)
+    : rawBatches;
 
   const table = useReactTable({
     data: batches,
@@ -177,6 +185,9 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
             </SelectItem>
             <SelectItem value="expired">
               <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Expired</span>
+            </SelectItem>
+            <SelectItem value="low_stock">
+              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />Low Stock</span>
             </SelectItem>
           </SelectContent>
         </Select>

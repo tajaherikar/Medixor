@@ -32,15 +32,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserRound, Percent, IndianRupee, Plus } from "lucide-react";
+import { UserRound, Percent, IndianRupee, Plus, Pencil, FileDigit, BadgeCheck } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
 
 const customerSchema = z.object({
-  name:          z.string().min(1, "Customer name required"),
-  phone:         z.string().optional(),
-  email:         z.string().email("Enter a valid email").optional().or(z.literal("")),
-  discountType:  z.enum(["none", "percentage", "flat"]),
-  discountValue: z.number().min(0).optional(),
+  name:            z.string().min(1, "Customer name required"),
+  phone:           z.string().optional(),
+  email:           z.string().email("Enter a valid email").optional().or(z.literal("")),
+  address:         z.string().optional(),
+  gstNumber:       z.string().optional(),
+  licenseNumber:   z.string().optional(),
+  discountType:    z.enum(["none", "percentage", "flat"]),
+  discountValue:   z.number().min(0).optional(),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -51,6 +54,7 @@ interface CustomersListProps {
 
 export function CustomersList({ tenant }: CustomersListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
@@ -71,6 +75,9 @@ export function CustomersList({ tenant }: CustomersListProps) {
         name: data.name,
         phone: data.phone || undefined,
         email: data.email || undefined,
+        address: data.address || undefined,
+        gstNumber: data.gstNumber || undefined,
+        licenseNumber: data.licenseNumber || undefined,
         discount:
           data.discountType !== "none" && data.discountValue
             ? { type: data.discountType as "percentage" | "flat", value: data.discountValue }
@@ -88,6 +95,49 @@ export function CustomersList({ tenant }: CustomersListProps) {
       reset();
     },
   });
+
+  const editMutation = useMutation({
+    mutationFn: (data: CustomerFormValues) => {
+      const payload = {
+        name: data.name,
+        phone: data.phone || null,
+        email: data.email || null,
+        address: data.address || null,
+        gstNumber: data.gstNumber || null,
+        licenseNumber: data.licenseNumber || null,
+        discount:
+          data.discountType !== "none" && data.discountValue
+            ? { type: data.discountType as "percentage" | "flat", value: data.discountValue }
+            : null,
+      };
+      return fetch(`/api/${tenant}/customers/${editingCustomer!.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", tenant] });
+      setDialogOpen(false);
+      setEditingCustomer(null);
+      reset();
+    },
+  });
+
+  function openEdit(c: Customer) {
+    setEditingCustomer(c);
+    reset({
+      name: c.name,
+      phone: c.phone ?? "",
+      email: c.email ?? "",
+      address: c.address ?? "",
+      gstNumber: c.gstNumber ?? "",
+      licenseNumber: c.licenseNumber ?? "",
+      discountType: c.discount?.type ?? "none",
+      discountValue: c.discount?.value ?? undefined,
+    });
+    setDialogOpen(true);
+  }
 
   const {
     register,
@@ -128,7 +178,10 @@ export function CustomersList({ tenant }: CustomersListProps) {
               <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Customer</TableHead>
               <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden sm:table-cell">Phone</TableHead>
               <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden md:table-cell">Email</TableHead>
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden lg:table-cell">GST No.</TableHead>
+              <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground hidden lg:table-cell">License No.</TableHead>
               <TableHead className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">Discount</TableHead>
+              {isAdmin && <TableHead />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -138,6 +191,8 @@ export function CustomersList({ tenant }: CustomersListProps) {
                   <TableCell><Skeleton className="h-5 w-full" /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
                   <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
+                  <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
+                  <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-full" /></TableCell>
                 </TableRow>
               ))
@@ -158,6 +213,20 @@ export function CustomersList({ tenant }: CustomersListProps) {
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">{c.phone ?? "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground hidden md:table-cell">{c.email ?? "—"}</TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {c.gstNumber ? (
+                    <span className="flex items-center gap-1.5 text-xs font-mono">
+                      <FileDigit className="h-3 w-3 text-muted-foreground" />{c.gstNumber}
+                    </span>
+                  ) : <span className="text-xs text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {c.licenseNumber ? (
+                    <span className="flex items-center gap-1.5 text-xs font-mono">
+                      <BadgeCheck className="h-3 w-3 text-muted-foreground" />{c.licenseNumber}
+                    </span>
+                  ) : <span className="text-xs text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell>
                   {c.discount ? (
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${
@@ -177,19 +246,30 @@ export function CustomersList({ tenant }: CustomersListProps) {
                     <span className="text-xs text-muted-foreground">No discount</span>
                   )}
                 </TableCell>
+                {isAdmin && (
+                  <TableCell className="w-10 text-right pr-4">
+                    <button
+                      onClick={() => openEdit(c)}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      aria-label="Edit customer"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
 
-      {/* Add Customer Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* Add / Edit Customer Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setEditingCustomer(null); reset(); } setDialogOpen(open); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Customer</DialogTitle>
+            <DialogTitle>{editingCustomer ? "Edit Customer" : "Add Customer"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit((v) => addMutation.mutate(v))} className="space-y-4 pt-1">
+          <form onSubmit={handleSubmit((v) => editingCustomer ? editMutation.mutate(v) : addMutation.mutate(v))} className="space-y-4 pt-1">
             <div className="space-y-1.5">
               <Label htmlFor="cus-name">Customer Name *</Label>
               <Input id="cus-name" placeholder="e.g. City Pharmacy" {...register("name")} />
@@ -205,6 +285,26 @@ export function CustomersList({ tenant }: CustomersListProps) {
                 <Input id="cus-email" type="email" placeholder="you@example.com" {...register("email")} />
                 {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="cus-gst">GST Number</Label>
+                <Input id="cus-gst" placeholder="22AAAAA0000A1Z5" className="font-mono" {...register("gstNumber")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cus-license">License Number</Label>
+                <Input id="cus-license" placeholder="DL-MH-12345" className="font-mono" {...register("licenseNumber")} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cus-address">Address <span className="text-muted-foreground">(optional)</span></Label>
+              <textarea
+                id="cus-address"
+                rows={2}
+                placeholder="Street, City, State, PIN"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                {...register("address")}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Discount</Label>
@@ -237,11 +337,11 @@ export function CustomersList({ tenant }: CustomersListProps) {
               </div>
             )}
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); reset(); }}>
+              <Button type="button" variant="outline" onClick={() => { setEditingCustomer(null); setDialogOpen(false); reset(); }}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={addMutation.isPending}>
-                {addMutation.isPending ? "Saving…" : "Add Customer"}
+              <Button type="submit" disabled={addMutation.isPending || editMutation.isPending}>
+                {(addMutation.isPending || editMutation.isPending) ? "Saving…" : editingCustomer ? "Save Changes" : "Add Customer"}
               </Button>
             </DialogFooter>
           </form>

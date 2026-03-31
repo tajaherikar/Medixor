@@ -6,12 +6,15 @@
 
 -- ─── suppliers ────────────────────────────────────────────────────────────────
 create table if not exists suppliers (
-  id            text primary key,
-  "tenantId"    text not null,
-  name          text not null,
-  phone         text,
-  email         text,
-  "createdAt"   timestamptz not null default now()
+  id              text primary key,
+  "tenantId"      text not null,
+  name            text not null,
+  phone           text,
+  email           text,
+  address         text,
+  "gstNumber"     text,
+  "licenseNumber" text,
+  "createdAt"     timestamptz not null default now()
 );
 create index if not exists suppliers_tenantId_idx on suppliers ("tenantId");
 
@@ -42,6 +45,9 @@ create table if not exists customers (
   name         text not null,
   phone        text,
   email        text,
+  address      text,
+  "gstNumber"     text,
+  "licenseNumber" text,
   discount     jsonb,
   "createdAt"  timestamptz not null default now()
 );
@@ -65,7 +71,10 @@ create table if not exists invoices (
   "paymentStatus"          text not null,
   "paidAmount"             numeric not null,
   "dueDate"                text,
-  "createdAt"              timestamptz not null default now()
+  "createdAt"              timestamptz not null default now(),
+  "customerGstNumber"      text,
+  "customerLicenseNumber"  text,
+  "customerAddress"        text
 );
 create index if not exists invoices_tenantId_idx on invoices ("tenantId");
 create index if not exists invoices_customerId_idx on invoices ("customerId");
@@ -76,6 +85,8 @@ create table if not exists supplier_bills (
   "tenantId"       text not null,
   "supplierId"     text,
   "supplierName"   text not null,
+  "supplierGstNumber"     text,
+  "supplierLicenseNumber" text,
   "invoiceNumber"  text not null,
   date             text not null,
   items            jsonb not null default '[]',
@@ -122,6 +133,19 @@ alter table invoices add column if not exists "referredBy" text;
 alter table invoices add column if not exists "referredById" text;
 create index if not exists invoices_referredById_idx on invoices ("referredById");
 
+-- Migration: add customer meta columns to invoices (safe to re-run)
+alter table invoices add column if not exists "customerGstNumber" text;
+alter table invoices add column if not exists "customerLicenseNumber" text;
+alter table invoices add column if not exists "customerAddress" text;
+
+-- Migration: add address/gst/license to suppliers and customers (safe to re-run)
+alter table suppliers add column if not exists address text;
+alter table suppliers add column if not exists "gstNumber" text;
+alter table suppliers add column if not exists "licenseNumber" text;
+alter table customers add column if not exists address text;
+alter table customers add column if not exists "gstNumber" text;
+alter table customers add column if not exists "licenseNumber" text;
+
 -- ─── users ──────────────────────────────────────────────────────────────────────
 create table if not exists users (
   id               text primary key,
@@ -138,17 +162,23 @@ create index if not exists users_tenantId_idx on users ("tenantId");
 -- ─── tenant_settings ──────────────────────────────────────────────────────────
 -- One row per tenant. Upsert on save. logoBase64 stored as text (data URI).
 create table if not exists tenant_settings (
-  "tenantId"        text primary key,
-  "businessName"    text not null default '',
-  "logoBase64"      text,
-  gstin             text not null default '',
-  address           text not null default '',
-  phone             text not null default '',
-  "accentHue"       numeric not null default 196,
-  "invoicePrefix"   text not null default 'INV-',
-  "invoiceFooter"   text not null default 'Thank you for your business.',
-  "updatedAt"       timestamptz not null default now()
+  "tenantId"           text primary key,
+  "businessName"       text not null default '',
+  "logoBase64"         text,
+  gstin                text not null default '',
+  address              text not null default '',
+  phone                text not null default '',
+  "accentHue"          numeric not null default 196,
+  "invoicePrefix"      text not null default 'INV-',
+  "invoiceFooter"      text not null default 'Thank you for your business.',
+  "showReferenceField" boolean not null default false,
+  "lowStockThreshold"  integer not null default 20,
+  "updatedAt"          timestamptz not null default now()
 );
+
+-- Migration: add lowStockThreshold to existing tenant_settings rows (safe to re-run)
+alter table tenant_settings add column if not exists "lowStockThreshold" integer not null default 20;
+alter table tenant_settings add column if not exists "showReferenceField" boolean not null default false;
 
 -- ─── Row Level Security (recommended) ─────────────────────────────────────────
 -- Enable RLS and add policies per your auth strategy, e.g.:

@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
-import { Printer } from "lucide-react";
+import { Printer, MessageCircle, Mail } from "lucide-react";
 import { useSettingsStore } from "@/lib/stores";
 
 interface Props {
@@ -31,7 +31,7 @@ const esc = (s: string | number | undefined) =>
 function buildPrintHtml(
   inv: Invoice,
   tenant: string,
-  opts: { businessName: string; logoBase64: string | null; gstin: string; address: string; phone: string; invoiceFooter: string; accentHue: number }
+  opts: { businessName: string; logoBase64: string | null; gstin: string; address: string; phone: string; invoiceFooter: string; accentHue: number; showReferenceField: boolean }
 ): string {
   const accentColor = `oklch(0.52 0.15 ${opts.accentHue})`;
   // Approximate analogous hex for table headers (CSS oklch may not render in all print engines)
@@ -119,7 +119,10 @@ td{padding:5px 7px;vertical-align:middle}
   <div class="box">
     <div class="lbl">Billed To</div>
     <div class="nm">${esc(inv.customerName)}</div>
-    ${inv.referredBy ? `<div class="sub">Ref: ${esc(inv.referredBy)}</div>` : ""}
+    ${inv.customerGstNumber ? `<div class="sub" style="font-family:monospace">GST: ${esc(inv.customerGstNumber)}</div>` : ""}
+    ${inv.customerLicenseNumber ? `<div class="sub" style="font-family:monospace">License: ${esc(inv.customerLicenseNumber)}</div>` : ""}
+    ${inv.customerAddress ? `<div class="sub">${esc(inv.customerAddress).replace(/\n/g, "<br>")}</div>` : ""}
+    ${opts.showReferenceField && inv.referredBy ? `<div class="sub">Ref: ${esc(inv.referredBy)}</div>` : ""}
   </div>
   <div class="box">
     <div class="lbl">Invoice Details</div>
@@ -168,6 +171,51 @@ export function InvoicePrintModal({ invoice, tenant, onClose }: Props) {
     win.document.close();
   };
 
+  const handleWhatsApp = () => {
+    const balance = invoice.grandTotal - (invoice.paidAmount ?? 0);
+    const itemSummary = invoice.lineItems
+      .slice(0, 3)
+      .map((l) => `${l.itemName} x${l.quantity}`)
+      .join(", ");
+    const extra = invoice.lineItems.length > 3 ? ` +${invoice.lineItems.length - 3} more` : "";
+    const lines = [
+      `Hi ${invoice.customerName},`,
+      ``,
+      `Your invoice *${invoice.id.toUpperCase()}* from *${settings.businessName || "us"}* dated ${format(parseISO(invoice.createdAt), "dd MMM yyyy")} is ready.`,
+      ``,
+      `Items: ${itemSummary}${extra}`,
+      `Grand Total: ₹${invoice.grandTotal.toLocaleString("en-IN")}`,
+      ...(balance > 0 && invoice.paymentStatus !== "paid"
+        ? [`Balance Due: ₹${balance.toLocaleString("en-IN")}`]
+        : ["Status: Paid"]),
+      ``,
+      `Thank you for your business.`,
+    ];
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+  };
+
+  const handleEmail = () => {
+    const balance = invoice.grandTotal - (invoice.paidAmount ?? 0);
+    const bodyLines = [
+      `Dear ${invoice.customerName},`,
+      ``,
+      `Please find the details of your invoice below:`,
+      ``,
+      `Invoice No: ${invoice.id.toUpperCase()}`,
+      `Date: ${format(parseISO(invoice.createdAt), "dd MMM yyyy")}`,
+      `Grand Total: ₹${invoice.grandTotal.toLocaleString("en-IN")}`,
+      ...(balance > 0 && invoice.paymentStatus !== "paid"
+        ? [`Balance Due: ₹${balance.toLocaleString("en-IN")}`]
+        : ["Status: Paid"]),
+      ``,
+      `Thank you for your business.`,
+      ...(settings.businessName ? [``, settings.businessName] : []),
+    ];
+    const subject = encodeURIComponent(`Invoice ${invoice.id.toUpperCase()} from ${settings.businessName || "us"}`);
+    const body = encodeURIComponent(bodyLines.join("\n"));
+    window.open(`mailto:?subject=${subject}&body=${body}`, "_self");
+  };
+
   const totalCgst = invoice.lineItems.reduce((s, l) => s + l.cgst, 0);
   const totalSgst = invoice.lineItems.reduce((s, l) => s + l.sgst, 0);
 
@@ -182,13 +230,29 @@ export function InvoicePrintModal({ invoice, tenant, onClose }: Props) {
                 {format(parseISO(invoice.createdAt), "dd MMM yyyy")}
               </p>
             </div>
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Print / PDF
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleWhatsApp}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors shrink-0"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp
+              </button>
+              <button
+                onClick={handleEmail}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shrink-0"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Email
+              </button>
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print / PDF
+              </button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -223,7 +287,16 @@ export function InvoicePrintModal({ invoice, tenant, onClose }: Props) {
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Billed To</p>
               <p className="font-semibold text-sm">{invoice.customerName}</p>
-              {invoice.referredBy && (
+              {invoice.customerGstNumber && (
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">GST: {invoice.customerGstNumber}</p>
+              )}
+              {invoice.customerLicenseNumber && (
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">License: {invoice.customerLicenseNumber}</p>
+              )}
+              {invoice.customerAddress && (
+                <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">{invoice.customerAddress}</p>
+              )}
+              {settings.showReferenceField && invoice.referredBy && (
                 <p className="text-xs text-muted-foreground mt-0.5">Ref: {invoice.referredBy}</p>
               )}
             </div>

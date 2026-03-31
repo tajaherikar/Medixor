@@ -101,6 +101,8 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const watchedItems = useWatch({ control, name: "items" });
+  const watchedSupplierId = useWatch({ control, name: "supplierId" });
+  const selectedSupplier = suppliers.find((s) => s.id === watchedSupplierId);
 
   // Live totals
   const itemTotals = (watchedItems ?? []).map((item) => {
@@ -136,6 +138,9 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
       ...data,
       items: enrichedItems,
       supplierName: supplier?.name ?? "",
+      ...(supplier?.gstNumber && { supplierGstNumber: supplier.gstNumber }),
+      ...(supplier?.licenseNumber && { supplierLicenseNumber: supplier.licenseNumber }),
+      ...(supplier?.address && { supplierAddress: supplier.address }),
       tenantId: tenant,
       taxableAmount,
       totalGst,
@@ -151,7 +156,8 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(`Failed to save bill: ${err.error ?? res.statusText}`);
+      const msg = typeof err.error === "string" ? err.error : (err.message ?? res.statusText);
+      alert(`Failed to save bill: ${msg}`);
       return;
     }
     setSubmitted(true);
@@ -184,6 +190,23 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
               </SelectContent>
             </Select>
             {errors.supplierId && <p className="text-xs text-destructive">{errors.supplierId.message}</p>}
+            {selectedSupplier && (selectedSupplier.gstNumber || selectedSupplier.licenseNumber || selectedSupplier.address) && (
+              <div className="flex flex-wrap gap-3 mt-1">
+                {selectedSupplier.gstNumber && (
+                  <span className="text-xs text-muted-foreground">
+                    GST: <span className="font-mono font-medium text-foreground">{selectedSupplier.gstNumber}</span>
+                  </span>
+                )}
+                {selectedSupplier.licenseNumber && (
+                  <span className="text-xs text-muted-foreground">
+                    License: <span className="font-mono font-medium text-foreground">{selectedSupplier.licenseNumber}</span>
+                  </span>
+                )}
+                {selectedSupplier.address && (
+                  <span className="text-xs text-muted-foreground">{selectedSupplier.address}</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Invoice Number */}

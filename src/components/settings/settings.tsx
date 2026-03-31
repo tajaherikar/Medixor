@@ -8,6 +8,7 @@ import {
   Building2,
   Palette,
   FileText,
+  Package2,
   Upload,
   X,
   CheckCircle2,
@@ -314,6 +315,53 @@ export function Settings({ tenant }: { tenant: string }) {
             value={draft.invoiceFooter}
             onChange={(e) => patch("invoiceFooter", e.target.value)}
           />
+        </Field>
+
+        <Field
+          label="Reference on PDF"
+          hint='Print the “Referred by” Doctor / Lab / Consultant on generated invoice PDFs'
+        >
+          <button
+            type="button"
+            role="switch"
+            aria-checked={draft.showReferenceField}
+            onClick={() => patch("showReferenceField", !draft.showReferenceField)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+              draft.showReferenceField ? "bg-primary" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform ${
+                draft.showReferenceField ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </Field>
+      </Section>
+
+      {/* ── Inventory ─────────────────────────────────────────────── */}
+      <Section
+        icon={Package2}
+        title="Inventory"
+        subtitle="Configure stock thresholds and alerts"
+      >
+        <Field
+          label="Low stock threshold"
+          hint="Batches with fewer units than this value are highlighted as low stock on the dashboard and inventory page"
+        >
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              max={9999}
+              className={`${inputCls} max-w-[120px]`}
+              value={draft.lowStockThreshold}
+              onChange={(e) =>
+                patch("lowStockThreshold", Math.max(0, parseInt(e.target.value) || 0))
+              }
+            />
+            <span className="text-xs text-muted-foreground">units</span>
+          </div>
         </Field>
       </Section>
 

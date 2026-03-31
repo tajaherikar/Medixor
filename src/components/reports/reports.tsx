@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { InvoicePrintModal } from "./invoice-print-modal";
 import { BillPrintModal } from "./bill-print-modal";
 import {
@@ -26,6 +26,8 @@ import {
   Eye,
   Search,
   Download,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { Batch, Doctor, Invoice, SupplierBill } from "@/lib/types";
@@ -85,6 +87,7 @@ export function Reports({ tenant }: ReportsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("expiry");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
+  const [expandedDoctor, setExpandedDoctor] = useState<string | null>(null);
 
   // Date range — default to current month
   const [dateFrom, setDateFrom] = useState<string>(
@@ -262,6 +265,13 @@ export function Reports({ tenant }: ReportsProps) {
     }
   }
 
+  const tooltipStyle = useMemo(() => ({
+    background: "var(--card)",
+    border: "1px solid var(--border)",
+    borderRadius: "8px",
+    fontSize: "12px",
+  }), []);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -313,13 +323,6 @@ export function Reports({ tenant }: ReportsProps) {
       valueCls: "text-violet-700",
     },
   ];
-
-  const tooltipStyle = {
-    background: "var(--card)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    fontSize: "12px",
-  };
 
   return (
     <div className="space-y-6">
@@ -1051,31 +1054,114 @@ export function Reports({ tenant }: ReportsProps) {
                         const pct = row.pct;
                         const pctColor = pct === null ? "" : pct >= 100 ? "text-green-700" : pct >= 70 ? "text-amber-600" : "text-red-600";
                         const barColor = pct === null ? "bg-muted" : pct >= 100 ? "bg-green-500" : pct >= 70 ? "bg-amber-400" : "bg-red-400";
+                        const rowKey = row.id ?? row.name + idx;
+                        const isExpanded = expandedDoctor === rowKey;
+                        // Collect invoices for this row
+                        const rowInvoices: Invoice[] = row.id && row.type !== "walkin" && row.type !== "legacy"
+                          ? (byId[row.id as string] ?? [])
+                          : row.type === "walkin"
+                          ? walkIn
+                          : (byName[row.name] ?? []);
                         return (
-                          <tr key={row.id ?? row.name + idx} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
-                            <td className="py-3 pr-4 font-medium">{row.name}</td>
-                            <td className="py-3 pr-4">
-                              <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${typeBadge[row.type] ?? typeBadge.legacy}`}>
-                                {row.type === "walkin" ? "Walk-in" : row.type === "legacy" ? "Unregistered" : row.type.charAt(0).toUpperCase() + row.type.slice(1)}
-                              </span>
-                            </td>
-                            <td className="py-3 pr-4 text-xs text-muted-foreground">{row.phone ?? "—"}</td>
-                            <td className="py-3 pr-4 text-right">
-                              {row.target > 0 ? rupees(row.target) : <span className="text-muted-foreground">—</span>}
-                            </td>
-                            <td className="py-3 pr-4 text-right font-semibold text-teal-700">{rupees(row.actual)}</td>
-                            <td className="py-3 pr-4 text-right">
-                              {pct !== null ? (
-                                <div className="flex flex-col items-end gap-1">
-                                  <span className={`text-xs font-semibold ${pctColor}`}>{Math.round(pct)}%</span>
-                                  <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-                                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          <Fragment key={rowKey}>
+                            <tr
+                              key={rowKey}
+                              className={`border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer select-none ${
+                                isExpanded ? "bg-muted/30" : ""
+                              }`}
+                              onClick={() => setExpandedDoctor(isExpanded ? null : rowKey)}
+                            >
+                              <td className="py-3 pr-4 font-medium">
+                                <span className="flex items-center gap-1.5">
+                                  {isExpanded
+                                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                    : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                                  {row.name}
+                                </span>
+                              </td>
+                              <td className="py-3 pr-4">
+                                <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${typeBadge[row.type] ?? typeBadge.legacy}`}>
+                                  {row.type === "walkin" ? "Walk-in" : row.type === "legacy" ? "Unregistered" : row.type.charAt(0).toUpperCase() + row.type.slice(1)}
+                                </span>
+                              </td>
+                              <td className="py-3 pr-4 text-xs text-muted-foreground">{row.phone ?? "—"}</td>
+                              <td className="py-3 pr-4 text-right">
+                                {row.target > 0 ? rupees(row.target) : <span className="text-muted-foreground">—</span>}
+                              </td>
+                              <td className="py-3 pr-4 text-right font-semibold text-teal-700">{rupees(row.actual)}</td>
+                              <td className="py-3 pr-4 text-right">
+                                {pct !== null ? (
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className={`text-xs font-semibold ${pctColor}`}>{Math.round(pct)}%</span>
+                                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                                      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                    </div>
                                   </div>
-                                </div>
-                              ) : <span className="text-xs text-muted-foreground">—</span>}
-                            </td>
-                            <td className="py-3 text-right">{row.count}</td>
-                          </tr>
+                                ) : <span className="text-xs text-muted-foreground">—</span>}
+                              </td>
+                              <td className="py-3 text-right">{row.count}</td>
+                            </tr>
+                            {isExpanded && rowInvoices.length > 0 && (
+                              <tr key={rowKey + "-detail"} className="border-b border-border/50">
+                                <td colSpan={7} className="px-0 py-0">
+                                  <div className="bg-muted/20 border-l-2 border-teal-400 ml-6 mr-2 mb-2 mt-0.5 overflow-hidden">
+                                    <table className="w-full text-xs">
+                                      <thead>
+                                        <tr className="border-b border-border/60 bg-muted/40">
+                                          <th className="text-left px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide">Invoice #</th>
+                                          <th className="text-left px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide">Patient / Customer</th>
+                                          <th className="text-left px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide">Date</th>
+                                          <th className="text-right px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide">Amount</th>
+                                          <th className="text-left px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                                          <th className="px-3 py-2"></th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {rowInvoices
+                                          .slice()
+                                          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                                          .map((inv) => {
+                                            const payBadge: Record<string, string> = {
+                                              paid:    "bg-green-100 text-green-700",
+                                              partial: "bg-amber-100 text-amber-700",
+                                              unpaid:  "bg-red-100 text-red-700",
+                                            };
+                                            return (
+                                              <tr key={inv.id} className="border-b border-border/30 hover:bg-muted/40 transition-colors">
+                                                <td className="px-3 py-2 font-mono font-semibold">{inv.id.toUpperCase()}</td>
+                                                <td className="px-3 py-2 font-medium">{inv.customerName}</td>
+                                                <td className="px-3 py-2 text-muted-foreground">{format(parseISO(inv.createdAt), "dd MMM yyyy")}</td>
+                                                <td className="px-3 py-2 text-right font-semibold text-teal-700">{rupees(inv.grandTotal)}</td>
+                                                <td className="px-3 py-2">
+                                                  <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${payBadge[inv.paymentStatus] ?? payBadge.unpaid}`}>
+                                                    {inv.paymentStatus.charAt(0).toUpperCase() + inv.paymentStatus.slice(1)}
+                                                  </span>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); }}
+                                                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                                                  >
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr className="border-t border-border/60 bg-muted/40">
+                                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-muted-foreground text-xs">Total</td>
+                                          <td className="px-3 py-2 text-right font-bold text-teal-700">{rupees(row.actual)}</td>
+                                          <td colSpan={2}></td>
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>

@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { InvoicePrintModal } from "@/components/reports/invoice-print-modal";
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
-import { useAuthStore } from "@/lib/stores";
+import { useAuthStore, useSettingsStore } from "@/lib/stores";
 
 interface LineItem {
   batchId: string;
@@ -159,6 +159,9 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       tenantId: tenant,
       customerId,
       customerName: selectedCustomer?.name ?? "",
+      ...(selectedCustomer?.gstNumber && { customerGstNumber: selectedCustomer.gstNumber }),
+      ...(selectedCustomer?.licenseNumber && { customerLicenseNumber: selectedCustomer.licenseNumber }),
+      ...(selectedCustomer?.address && { customerAddress: selectedCustomer.address }),
       lineItems: lineItems.map((l, i) => {
         const lt = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
         const gstAmt = lt * (l.gstRate / 100);
@@ -237,6 +240,23 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
               ))}
             </SelectContent>
           </Select>
+          {selectedCustomer && (selectedCustomer.gstNumber || selectedCustomer.licenseNumber || selectedCustomer.address) && (
+            <div className="flex flex-wrap gap-3 mt-1">
+              {selectedCustomer.gstNumber && (
+                <span className="text-xs text-muted-foreground">
+                  GST: <span className="font-mono font-medium text-foreground">{selectedCustomer.gstNumber}</span>
+                </span>
+              )}
+              {selectedCustomer.licenseNumber && (
+                <span className="text-xs text-muted-foreground">
+                  License: <span className="font-mono font-medium text-foreground">{selectedCustomer.licenseNumber}</span>
+                </span>
+              )}
+              {selectedCustomer.address && (
+                <span className="text-xs text-muted-foreground">{selectedCustomer.address}</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="space-y-1">

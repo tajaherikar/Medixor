@@ -24,6 +24,7 @@ import {
   Package2,
   Clock,
   CalendarDays,
+  ShoppingCart,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useSettingsStore } from "@/lib/stores";
@@ -38,6 +39,7 @@ function rupees(n: number) {
 
 export function Dashboard({ tenant }: DashboardProps) {
   const accentHue = useSettingsStore((s) => s.settings.accentHue);
+  const lowStockThreshold = useSettingsStore((s) => s.settings.lowStockThreshold ?? 20);
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all", ""],
@@ -57,6 +59,20 @@ export function Dashboard({ tenant }: DashboardProps) {
   const nearExpiry = batches.filter((b) => b.status === "near_expiry");
   const expired    = batches.filter((b) => b.status === "expired");
   const totalItems = batches.reduce((s, b) => s + b.availableQty, 0);
+
+  // Low stock: aggregate per-item total across non-expired batches
+  const itemQtyMap: Record<string, { total: number; batches: Batch[] }> = {};
+  for (const b of batches) {
+    if (b.status !== "expired") {
+      if (!itemQtyMap[b.itemName]) itemQtyMap[b.itemName] = { total: 0, batches: [] };
+      itemQtyMap[b.itemName].total += b.availableQty;
+      itemQtyMap[b.itemName].batches.push(b);
+    }
+  }
+  const lowStockItems = Object.entries(itemQtyMap)
+    .filter(([, v]) => v.total < lowStockThreshold)
+    .map(([name, v]) => ({ name, total: v.total, batches: v.batches }))
+    .sort((a, b) => a.total - b.total);
 
   // Financial KPIs
   const today      = format(new Date(), "yyyy-MM-dd");
@@ -82,7 +98,8 @@ export function Dashboard({ tenant }: DashboardProps) {
     .slice(0, 8);
 
   const nearExpiryRef = useRef<HTMLDivElement>(null);
-  const expiredRef = useRef<HTMLDivElement>(null);
+  const expiredRef    = useRef<HTMLDivElement>(null);
+  const lowStockRef   = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
 
@@ -121,6 +138,15 @@ export function Dashboard({ tenant }: DashboardProps) {
       iconColor: "text-red-600",
       alert: expired.length > 0,
     },
+    {
+      label: "Low Stock",
+      sub: `below ${lowStockThreshold} units`,
+      value: lowStockItems.length,
+      icon: ShoppingCart,
+      iconBg: "bg-orange-50",
+      iconColor: "text-orange-600",
+      alert: lowStockItems.length > 0,
+    },
   ];
 
   const onStatCardClick = (label: string) => {
@@ -131,6 +157,11 @@ export function Dashboard({ tenant }: DashboardProps) {
 
     if (label === "Expired") {
       expiredRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (label === "Low Stock") {
+      lowStockRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
@@ -176,7 +207,7 @@ export function Dashboard({ tenant }: DashboardProps) {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {statCards.map(({ label, sub, value, icon: Icon, iconBg, iconColor, alert }) => (
           <Card
             key={label}
@@ -251,6 +282,59 @@ export function Dashboard({ tenant }: DashboardProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Low Stock Alerts */}
+      {lowStockItems.length > 0 && (
+        <div ref={lowStockRef} id="low-stock-section" className="scroll-mt-20">
+          <Card className="shadow-sm border-orange-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-md bg-orange-100">
+                  <ShoppingCart className="h-4 w-4 text-orange-600" />
+                </div>
+                Low Stock Items
+                <span className="ml-1 text-xs font-normal bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                  {lowStockItems.length} item{lowStockItems.length > 1 ? "s" : ""}
+                </span>
+                <span className="ml-auto text-xs font-normal text-muted-foreground">
+                  Threshold: {lowStockThreshold} units
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0">
+              {lowStockItems.map((item, i) => (
+                <div
+                  key={item.name}
+                  className={`flex items-center justify-between py-3 ${
+                    i < lowStockItems.length - 1 ? "border-b border-border" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-md bg-orange-50 shrink-0">
+                      <Package2 className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.batches.length} batch{item.batches.length > 1 ? "es" : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="shrink-0 ml-3">
+                    <span
+                      className={`text-sm font-bold tabular-nums ${
+                        item.total === 0 ? "text-muted-foreground" : "text-orange-600"
+                      }`}
+                    >
+                      {item.total} units
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Near Expiry Alerts */}
       {nearExpiry.length > 0 && (

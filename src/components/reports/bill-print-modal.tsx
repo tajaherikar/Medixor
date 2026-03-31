@@ -115,6 +115,9 @@ td{padding:5px 7px;vertical-align:middle}
   <div class="box">
     <div class="lbl">Supplier</div>
     <div class="nm">${esc(bill.supplierName)}</div>
+    ${bill.supplierGstNumber ? `<div class="sub" style="font-family:monospace">GST: ${esc(bill.supplierGstNumber)}</div>` : ""}
+    ${bill.supplierLicenseNumber ? `<div class="sub" style="font-family:monospace">License: ${esc(bill.supplierLicenseNumber)}</div>` : ""}
+    ${bill.supplierAddress ? `<div class="sub">${esc(bill.supplierAddress).replace(/\n/g, "<br>")}</div>` : ""}
   </div>
   <div class="box">
     <div class="lbl">Bill Details</div>
@@ -217,6 +220,15 @@ export function BillPrintModal({ bill, tenant, onClose }: Props) {
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Supplier</p>
               <p className="font-semibold text-sm">{bill.supplierName}</p>
+              {bill.supplierGstNumber && (
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">GST: {bill.supplierGstNumber}</p>
+              )}
+              {bill.supplierLicenseNumber && (
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">License: {bill.supplierLicenseNumber}</p>
+              )}
+              {bill.supplierAddress && (
+                <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">{bill.supplierAddress}</p>
+              )}
             </div>
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Bill Details</p>

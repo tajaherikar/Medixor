@@ -33,6 +33,9 @@ export interface Supplier {
   name: string;
   phone?: string;
   email?: string;
+  address?: string;
+  gstNumber?: string;
+  licenseNumber?: string;
   createdAt: string; // ISO date string
 }
 
@@ -89,6 +92,9 @@ export interface SupplierBill {
   tenantId: string;
   supplierId: string;
   supplierName: string;
+  supplierGstNumber?: string;
+  supplierLicenseNumber?: string;
+  supplierAddress?: string;
   invoiceNumber: string;
   date: string;
   items: SupplierBillItem[];
@@ -129,6 +135,9 @@ export interface Customer {
   name: string;
   phone?: string;
   email?: string;
+  address?: string;
+  gstNumber?: string;
+  licenseNumber?: string;
   discount?: CustomerDiscount;
   createdAt: string;
 }
@@ -159,6 +168,9 @@ export interface Invoice {
   tenantId: string;
   customerId: string;
   customerName: string;
+  customerGstNumber?: string;
+  customerLicenseNumber?: string;
+  customerAddress?: string;
   referredById?: string;        // Doctor ID (linked to doctors table)
   referredBy?: string;          // Doctor / Lab / Consultant name (free-text fallback)
   lineItems: InvoiceLineItem[];
@@ -214,6 +226,10 @@ export interface BusinessSettings {
   // Invoice
   invoicePrefix: string;       // e.g. "INV-" → INV-2026-001
   invoiceFooter: string;       // text printed at bottom of invoice
+  showReferenceField: boolean; // show/hide the Doctor/Lab/Consultant reference field in invoice builder
+
+  // Inventory
+  lowStockThreshold: number;   // batches with availableQty below this are flagged as low stock
 }
 
 export const defaultBusinessSettings: BusinessSettings = {
@@ -225,5 +241,7 @@ export const defaultBusinessSettings: BusinessSettings = {
   accentHue: 196,
   invoicePrefix: "INV-",
   invoiceFooter: "Thank you for your business.",
+  showReferenceField: false,
+  lowStockThreshold: 20,
 };
 

@@ -69,8 +69,11 @@ export async function POST(
 
     return NextResponse.json(newBill, { status: 201 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("POST supplier-bills error:", message);
+    const message =
+      err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message ?? JSON.stringify(err);
+    console.error("POST supplier-bills error:", err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
