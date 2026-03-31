@@ -25,6 +25,7 @@ import {
   Printer,
   Eye,
   Search,
+  Download,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { Batch, Doctor, Invoice, SupplierBill } from "@/lib/types";
@@ -53,6 +54,26 @@ function rupees(n: number) {
   return "₹" + new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
 }
 
+function downloadCsv(rows: (string | number)[][], filename: string) {
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const s = String(cell).replace(/"/g, '""');
+          return /[,"\n]/.test(s) ? `"${s}"` : s;
+        })
+        .join(",")
+    )
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function shortName(name: string) {
   return name.replace(/ \d+(mg|ml)$/i, "");
 }
@@ -72,6 +93,8 @@ export function Reports({ tenant }: ReportsProps) {
 
   // Tabs that respect the date filter
   const DATE_TABS: Tab[] = ["invoices", "sales", "purchase", "gst", "doctor"];
+  // Tabs that support CSV export
+  const CSV_TABS: Tab[] = ["expiry", "invoices", "sales", "purchase"];
 
   // Search state
   const [invoiceSearch, setInvoiceSearch] = useState("");
@@ -178,6 +201,64 @@ export function Reports({ tenant }: ReportsProps) {
 
   const isLoading = batchLoading || invoiceLoading || billsLoading || doctorLoading;
 
+  function handleExportCsv() {
+    const dateLabel = `${dateFrom}_to_${dateTo}`;
+    if (activeTab === "expiry") {
+      const rows: (string | number)[][] = [
+        ["Item", "Batch No", "Supplier", "Expiry Date", "Status", "Qty", "Value (MRP)"],
+        ...searchedExpiry.map((b) => [
+          b.itemName, b.batchNumber, b.supplierName, b.expiryDate,
+          b.status, b.availableQty, b.availableQty * b.mrp,
+        ]),
+      ];
+      downloadCsv(rows, `expiry-report.csv`);
+    } else if (activeTab === "invoices") {
+      const rows: (string | number)[][] = [
+        ["Invoice ID", "Customer", "Date", "Items", "Subtotal", "Discount", "Grand Total"],
+        ...filteredInvoices.map((inv) => [
+          inv.id, inv.customerName,
+          format(parseISO(inv.createdAt), "dd MMM yyyy"),
+          inv.lineItems.length,
+          inv.subtotal, inv.customerDiscountAmount, inv.grandTotal,
+        ]),
+      ];
+      downloadCsv(rows, `invoices-${dateLabel}.csv`);
+    } else if (activeTab === "sales") {
+      const rows: (string | number)[][] = [
+        ["Invoice ID", "Customer", "Date", "HSN", "Taxable Amount", "CGST", "SGST", "Total GST", "Grand Total", "Status"],
+        ...filteredInvoices.map((inv) => {
+          const hsnSet = [...new Set(inv.lineItems.map((l) => l.hsnCode))].join("; ");
+          const totalCgst = inv.lineItems.reduce((s, l) => s + (l.cgst ?? 0), 0);
+          const totalSgst = inv.lineItems.reduce((s, l) => s + (l.sgst ?? 0), 0);
+          return [
+            inv.id, inv.customerName,
+            format(parseISO(inv.createdAt), "dd MMM yyyy"),
+            hsnSet,
+            inv.taxableAmount ?? inv.subtotal,
+            totalCgst, totalSgst, inv.totalGst ?? 0, inv.grandTotal,
+            inv.paymentStatus,
+          ];
+        }),
+      ];
+      downloadCsv(rows, `sales-register-${dateLabel}.csv`);
+    } else if (activeTab === "purchase") {
+      const rows: (string | number)[][] = [
+        ["Supplier", "Invoice #", "Date", "Taxable Amount", "CGST (Input)", "SGST (Input)", "Total GST", "Grand Total", "Status"],
+        ...filteredBills.map((bill) => {
+          const totalCgst = bill.items.reduce((s, i) => s + i.cgst, 0);
+          const totalSgst = bill.items.reduce((s, i) => s + i.sgst, 0);
+          return [
+            bill.supplierName, bill.invoiceNumber,
+            format(parseISO(bill.date), "dd MMM yyyy"),
+            bill.taxableAmount, totalCgst, totalSgst, bill.totalGst, bill.grandTotal,
+            bill.paymentStatus,
+          ];
+        }),
+      ];
+      downloadCsv(rows, `purchase-register-${dateLabel}.csv`);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -273,14 +354,26 @@ export function Reports({ tenant }: ReportsProps) {
             <p className="text-sm font-semibold text-foreground">
               {tabs.find((t) => t.key === activeTab)?.label}
             </p>
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-              title="Print or save as PDF"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Print / PDF
-            </button>
+            <div className="flex items-center gap-2">
+              {CSV_TABS.includes(activeTab) && (
+                <button
+                  onClick={handleExportCsv}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                  title="Export as CSV"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export CSV
+                </button>
+              )}
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                title="Print or save as PDF"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print / PDF
+              </button>
+            </div>
           </div>
           {/* Tab pills */}
           <div className="print:hidden flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
