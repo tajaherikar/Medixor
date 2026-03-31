@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bell, Search, Menu, LogOut, AlertTriangle, PackageX, ReceiptText } from "lucide-react";
+import { Bell, Search, Menu, LogOut, AlertTriangle, PackageX, ReceiptText, Settings } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
 import { getBatches, getInvoices } from "@/lib/db";
 import { Batch, Invoice } from "@/lib/types";
@@ -15,6 +15,7 @@ const routeLabels: Record<string, { title: string; subtitle: string }> = {
   billing:   { title: "Create Invoice",  subtitle: "Select customer, add items, apply discounts" },
   customers: { title: "Customers",       subtitle: "Customer accounts and discount profiles" },
   reports:   { title: "Reports",         subtitle: "Expiry reports and stock analytics" },
+  settings:  { title: "Settings",        subtitle: "Business profile, appearance, and invoice options" },
 };
 
 interface TopHeaderProps {
@@ -266,7 +267,16 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
               </button>
 
               {open && (
-                <div className="absolute right-0 top-full mt-1 w-44 rounded-lg border border-border bg-card shadow-lg z-50 py-1">
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-card shadow-lg z-50 py-1">
+                  <a
+                    href={`/${tenant}/settings`}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Settings className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    Settings
+                  </a>
+                  <div className="my-1 border-t border-border" />
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-red-500 hover:bg-muted transition-colors"

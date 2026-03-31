@@ -9,6 +9,7 @@ import {
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
 import { Printer } from "lucide-react";
+import { useSettingsStore } from "@/lib/stores";
 
 interface Props {
   invoice: Invoice | null;
@@ -27,7 +28,21 @@ const esc = (s: string | number | undefined) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-function buildPrintHtml(inv: Invoice, tenant: string): string {
+function buildPrintHtml(
+  inv: Invoice,
+  tenant: string,
+  opts: { businessName: string; logoBase64: string | null; gstin: string; address: string; phone: string; invoiceFooter: string; accentHue: number }
+): string {
+  const accentColor = `oklch(0.52 0.15 ${opts.accentHue})`;
+  // Approximate analogous hex for table headers (CSS oklch may not render in all print engines)
+  // Keep a hex-like fallback using the preset map
+  const hexMap: Record<number, string> = {
+    196: "#0d9488", 210: "#0891b2", 240: "#2563eb", 258: "#4f46e5",
+    275: "#7c3aed", 290: "#9333ea", 15: "#e11d48", 50: "#ea580c",
+    65: "#d97706", 152: "#16a34a",
+  };
+  const accent = hexMap[opts.accentHue] ?? "#0d9488";
+
   const payStyle = {
     paid:    "background:#dcfce7;color:#15803d",
     partial: "background:#fef3c7;color:#b45309",
@@ -60,9 +75,11 @@ function buildPrintHtml(inv: Invoice, tenant: string): string {
 <html><head><meta charset="utf-8"><title>Invoice ${esc(inv.id)}</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a;padding:24px;max-width:960px;margin:0 auto}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #0d9488}
-.brand{font-size:22px;font-weight:800;color:#0d9488}
-.brand-sub{font-size:11px;color:#666;text-transform:capitalize;margin-top:2px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid ${accent}}
+.brand{font-size:22px;font-weight:800;color:${accent}}
+.brand-sub{font-size:11px;color:#666;margin-top:2px}
+.brand-meta{font-size:10px;color:#888;margin-top:3px;line-height:1.5}
+.logo{max-height:56px;max-width:180px;object-fit:contain;margin-bottom:4px}
 .title{font-size:18px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px}
 .meta{font-size:11px;color:#555;text-align:right;margin-top:4px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
@@ -71,20 +88,27 @@ body{font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a;padding:24px;max-
 .nm{font-size:13px;font-weight:600}
 .sub{font-size:11px;color:#6b7280;margin-top:2px}
 table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px}
-thead tr{background:#0d9488;color:white}
+thead tr{background:${accent};color:white}
 th{padding:6px 7px;text-align:left;font-weight:600;font-size:10px;text-transform:uppercase;white-space:nowrap}
 tbody tr{border-bottom:1px solid #f0f0f0}
 tbody tr:nth-child(even){background:#fafafa}
 td{padding:5px 7px;vertical-align:middle}
 .tot{width:290px;margin-left:auto;border-collapse:collapse;font-size:12px}
 .tot td:last-child{text-align:right}
-.tot tr.grand td{font-weight:700;font-size:14px;border-top:2px solid #0d9488;color:#0d9488;padding-top:6px}
+.tot tr.grand td{font-weight:700;font-size:14px;border-top:2px solid ${accent};color:${accent};padding-top:6px}
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600}
 .footer{margin-top:28px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:10px}
 @media print{@page{margin:1cm}}
 </style></head><body>
 <div class="hdr">
-  <div><div class="brand">Medixor</div><div class="brand-sub">${esc(tenant)}</div></div>
+  <div>
+    ${opts.logoBase64 ? `<img src="${opts.logoBase64}" class="logo" alt="logo" />` : ""}
+    <div class="brand">${esc(opts.businessName || "Medixor")}</div>
+    <div class="brand-sub" style="text-transform:capitalize">${esc(tenant)}</div>
+    ${opts.gstin ? `<div class="brand-meta">GSTIN: ${esc(opts.gstin)}</div>` : ""}
+    ${opts.address ? `<div class="brand-meta">${esc(opts.address).replace(/\n/g, "<br>")}</div>` : ""}
+    ${opts.phone ? `<div class="brand-meta">Ph: ${esc(opts.phone)}</div>` : ""}
+  </div>
   <div>
     <div class="title">Tax Invoice</div>
     <div class="meta">${esc(inv.id.toUpperCase())} &nbsp;|&nbsp; ${format(parseISO(inv.createdAt), "dd MMM yyyy")}</div>
@@ -122,7 +146,7 @@ td{padding:5px 7px;vertical-align:middle}
   <tr><td>SGST</td><td>${fmt(totalSgst)}</td></tr>
   <tr class="grand"><td>Grand Total</td><td>${fmt(inv.grandTotal)}</td></tr>
 </table>
-<div class="footer">Thank you for your business &mdash; Medixor</div>
+<div class="footer">${esc(opts.invoiceFooter || "Thank you for your business.")}</div>
 <script>window.onload=function(){window.print();window.addEventListener("afterprint",function(){window.close()})}</script>
 </body></html>`;
 }
@@ -134,12 +158,13 @@ const payColors: Record<string, string> = {
 };
 
 export function InvoicePrintModal({ invoice, tenant, onClose }: Props) {
+  const settings = useSettingsStore((s) => s.settings);
   if (!invoice) return null;
 
   const handlePrint = () => {
     const win = window.open("", "_blank", "width=960,height=650");
     if (!win) return;
-    win.document.write(buildPrintHtml(invoice, tenant));
+    win.document.write(buildPrintHtml(invoice, tenant, settings));
     win.document.close();
   };
 
@@ -170,9 +195,20 @@ export function InvoicePrintModal({ invoice, tenant, onClose }: Props) {
         <div className="space-y-5">
           {/* Header */}
           <div className="flex items-start justify-between pb-4 border-b border-border">
-            <div>
-              <p className="text-xl font-bold text-primary">Medixor</p>
-              <p className="text-xs text-muted-foreground capitalize mt-0.5">{tenant}</p>
+            <div className="flex items-center gap-3">
+              {settings.logoBase64 && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={settings.logoBase64} alt="logo" className="h-10 max-w-[120px] object-contain" />
+              )}
+              <div>
+                <p className="text-xl font-bold text-primary">{settings.businessName || "Medixor"}</p>
+                <p className="text-xs text-muted-foreground capitalize mt-0.5">{tenant}</p>
+                {settings.gstin && <p className="text-xs text-muted-foreground">GSTIN: {settings.gstin}</p>}
+                {settings.address && (
+                  <p className="text-xs text-muted-foreground whitespace-pre-line">{settings.address}</p>
+                )}
+                {settings.phone && <p className="text-xs text-muted-foreground">Ph: {settings.phone}</p>}
+              </div>
             </div>
             <div className="text-right">
               <p className="text-sm font-bold uppercase tracking-wider">Tax Invoice</p>

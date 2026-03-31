@@ -135,6 +135,21 @@ create table if not exists users (
 create unique index if not exists users_email_tenant_idx on users (email, "tenantId");
 create index if not exists users_tenantId_idx on users ("tenantId");
 
+-- ─── tenant_settings ──────────────────────────────────────────────────────────
+-- One row per tenant. Upsert on save. logoBase64 stored as text (data URI).
+create table if not exists tenant_settings (
+  "tenantId"        text primary key,
+  "businessName"    text not null default '',
+  "logoBase64"      text,
+  gstin             text not null default '',
+  address           text not null default '',
+  phone             text not null default '',
+  "accentHue"       numeric not null default 196,
+  "invoicePrefix"   text not null default 'INV-',
+  "invoiceFooter"   text not null default 'Thank you for your business.',
+  "updatedAt"       timestamptz not null default now()
+);
+
 -- ─── Row Level Security (recommended) ─────────────────────────────────────────
 -- Enable RLS and add policies per your auth strategy, e.g.:
 --

@@ -16,7 +16,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/lib/stores";
+import { useAuthStore, useSettingsStore } from "@/lib/stores";
 
 const navItems = [
   { label: "Dashboard",    href: "dashboard",        icon: LayoutDashboard, description: "Overview & alerts" },
@@ -42,6 +42,8 @@ interface SidebarNavProps {
 function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => void }) {
   const pathname = usePathname();
   const { user } = useAuthStore();
+  const businessName = useSettingsStore((s) => s.settings.businessName);
+  const logoBase64 = useSettingsStore((s) => s.settings.logoBase64);
   const isAdmin = user?.role === "admin";
 
   const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : navItems;
@@ -52,17 +54,22 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
       <div className="px-5 pt-6 pb-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
         <div className="flex items-center gap-2.5">
           <div
-            className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
-            style={{ background: "var(--sidebar-primary)" }}
+            className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0 overflow-hidden"
+            style={{ background: logoBase64 ? "white" : "var(--sidebar-primary)" }}
           >
-            <Cross className="h-4 w-4" style={{ color: "var(--sidebar-primary-foreground)" }} />
+            {logoBase64 ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoBase64} alt="logo" className="w-full h-full object-contain p-0.5" />
+            ) : (
+              <Cross className="h-4 w-4" style={{ color: "var(--sidebar-primary-foreground)" }} />
+            )}
           </div>
           <div>
             <span
               className="text-lg font-bold tracking-tight leading-none"
               style={{ fontFamily: "var(--font-jakarta), sans-serif", color: "var(--sidebar-foreground)" }}
             >
-              Medixor
+              {businessName || "Medixor"}
             </span>
             <span
               className="block text-xs capitalize leading-tight mt-0.5 font-medium"

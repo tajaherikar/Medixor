@@ -8,7 +8,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
-import { Batch, Customer, Doctor, Supplier, Invoice, SupplierBill, Payment, AppUser } from "@/lib/types";
+import { Batch, BusinessSettings, Customer, defaultBusinessSettings, Doctor, Supplier, Invoice, SupplierBill, Payment, AppUser } from "@/lib/types";
 import { getInventoryStatus } from "@/lib/batch-logic";
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
@@ -157,6 +157,29 @@ export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | 
     .maybeSingle();
   if (error) throw error;
   return data as AppUser | null;
+}
+
+// ─── Tenant Settings ──────────────────────────────────────────────────────────
+
+export async function getSettings(tenantId: string): Promise<BusinessSettings> {
+  const { data, error } = await supabase
+    .from("tenant_settings")
+    .select("*")
+    .eq("tenantId", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { ...defaultBusinessSettings };
+  const { tenantId: _tid, updatedAt: _ua, ...rest } = data as Record<string, unknown>;
+  void _tid; void _ua;
+  return { ...defaultBusinessSettings, ...rest } as BusinessSettings;
+}
+
+export async function upsertSettings(tenantId: string, settings: BusinessSettings): Promise<void> {
+  const { error } = await supabase.from("tenant_settings").upsert(
+    { tenantId, ...settings, updatedAt: new Date().toISOString() },
+    { onConflict: "tenantId" }
+  );
+  if (error) throw error;
 }
 
 export async function addUser(u: AppUser): Promise<void> {

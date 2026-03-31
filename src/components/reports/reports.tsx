@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { Batch, Doctor, Invoice, SupplierBill } from "@/lib/types";
+import { useSettingsStore } from "@/lib/stores";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryBadge, StatusBadge } from "@/components/ui/expiry-badge";
@@ -79,6 +80,8 @@ function shortName(name: string) {
 }
 
 export function Reports({ tenant }: ReportsProps) {
+  const accentHue = useSettingsStore((s) => s.settings.accentHue);
+
   const [activeTab, setActiveTab] = useState<Tab>("expiry");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
@@ -550,7 +553,7 @@ export function Reports({ tenant }: ReportsProps) {
                     formatter={(v) => [rupees(v as number), "Stock Value"]}
                     contentStyle={tooltipStyle}
                   />
-                  <Bar dataKey="value" fill="oklch(0.52 0.15 196)" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="value" fill={`oklch(0.52 0.15 ${accentHue})`} radius={[5, 5, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -593,7 +596,7 @@ export function Reports({ tenant }: ReportsProps) {
                   />
                   <Bar
                     dataKey="remaining"
-                    fill="oklch(0.52 0.15 196)"
+                    fill={`oklch(0.52 0.15 ${accentHue})`}
                     radius={[4, 4, 0, 0]}
                     stackId="a"
                   />
@@ -1027,7 +1030,7 @@ export function Reports({ tenant }: ReportsProps) {
                         <Tooltip formatter={(v, name) => [rupees(v as number), name === "target" ? "Target" : "Actual"]} contentStyle={tooltipStyle} />
                         <Legend formatter={(v) => v === "target" ? "Target" : "Actual"} wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }} />
                         <Bar dataKey="target" fill="oklch(0.75 0.12 60)" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="actual" fill="oklch(0.52 0.15 196)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="actual" fill={`oklch(0.52 0.15 ${accentHue})`} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

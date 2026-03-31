@@ -197,3 +197,33 @@ export interface BillingDraft {
   strategy: BatchSelectionStrategy;
   lineItems: BillingLineItemDraft[];
 }
+
+// ─── Business / Tenant Settings ───────────────────────────────────────────────
+
+export interface BusinessSettings {
+  // Identity
+  businessName: string;
+  logoBase64: string | null;   // data URI — used in print headers
+  gstin: string;
+  address: string;
+  phone: string;
+
+  // Appearance
+  accentHue: number;           // oklch hue — 196=teal(default), 240=blue, 275=violet …
+
+  // Invoice
+  invoicePrefix: string;       // e.g. "INV-" → INV-2026-001
+  invoiceFooter: string;       // text printed at bottom of invoice
+}
+
+export const defaultBusinessSettings: BusinessSettings = {
+  businessName: "",
+  logoBase64: null,
+  gstin: "",
+  address: "",
+  phone: "",
+  accentHue: 196,
+  invoicePrefix: "INV-",
+  invoiceFooter: "Thank you for your business.",
+};
+

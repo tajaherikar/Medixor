@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { BillingDraft } from "@/lib/types";
+import { BillingDraft, BusinessSettings, defaultBusinessSettings } from "@/lib/types";
 
 // ─── Auth Store ───────────────────────────────────────────────────────────────
 
@@ -118,3 +118,22 @@ export const useBillingStore = create<BillingState>((set) => ({
 
   clearDraft: () => set({ draft: emptyDraft }),
 }));
+
+// ─── Settings Store ───────────────────────────────────────────────────────────
+
+interface SettingsState {
+  settings: BusinessSettings;
+  updateSettings: (patch: Partial<BusinessSettings>) => void;
+}
+
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      settings: { ...defaultBusinessSettings },
+      updateSettings: (patch) =>
+        set((s) => ({ settings: { ...s.settings, ...patch } })),
+    }),
+    { name: "medixor-settings" }
+  )
+);
+

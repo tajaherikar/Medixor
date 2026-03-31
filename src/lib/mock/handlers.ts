@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { getInventoryStatus } from "@/lib/batch-logic";
 import * as db from "@/lib/db";
-import { Batch } from "@/lib/types";
+import { Batch, BusinessSettings } from "@/lib/types";
 import bcrypt from "bcryptjs";
 
 const BASE = "/api";
@@ -279,6 +279,20 @@ export const handlers = [
   http.delete(`${BASE}/:tenant/users/:id`, async ({ params }) => {
     const id = params.id as string;
     await db.deleteUser(id);
+    return HttpResponse.json({ success: true });
+  }),
+
+  // ── Tenant Settings ───────────────────────────────────────────────────────
+  http.get(`${BASE}/:tenant/settings`, async ({ params }) => {
+    const tenant = params.tenant as string;
+    const settings = await db.getSettings(tenant);
+    return HttpResponse.json(settings);
+  }),
+
+  http.put(`${BASE}/:tenant/settings`, async ({ request, params }) => {
+    const tenant = params.tenant as string;
+    const body = await request.json() as BusinessSettings;
+    await db.upsertSettings(tenant, body);
     return HttpResponse.json({ success: true });
   }),
 ];

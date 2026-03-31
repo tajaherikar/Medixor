@@ -26,6 +26,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useSettingsStore } from "@/lib/stores";
 
 interface DashboardProps {
   tenant: string;
@@ -36,6 +37,8 @@ function rupees(n: number) {
 }
 
 export function Dashboard({ tenant }: DashboardProps) {
+  const accentHue = useSettingsStore((s) => s.settings.accentHue);
+
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all", ""],
     queryFn: async () => {
@@ -239,7 +242,7 @@ export function Dashboard({ tenant }: DashboardProps) {
                   {chartData.map((_, i) => (
                     <Cell
                       key={i}
-                      fill={i % 2 === 0 ? "oklch(0.52 0.15 196)" : "oklch(0.72 0.11 186)"}
+                      fill={i % 2 === 0 ? `oklch(0.52 0.15 ${accentHue})` : `oklch(0.72 0.11 ${accentHue})`}
                     />
                   ))}
                 </Bar>
