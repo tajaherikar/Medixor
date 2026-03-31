@@ -23,6 +23,8 @@ import {
   IndianRupee,
   Users,
   Printer,
+  Eye,
+  Search,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { Batch, Doctor, Invoice, SupplierBill } from "@/lib/types";
@@ -71,6 +73,10 @@ export function Reports({ tenant }: ReportsProps) {
   // Tabs that respect the date filter
   const DATE_TABS: Tab[] = ["invoices", "sales", "purchase", "gst", "doctor"];
 
+  // Search state
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [expirySearch, setExpirySearch] = useState("");
+
   const { data: batches = [], isLoading: batchLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all"],
     queryFn: () => fetch(`/api/${tenant}/inventory`).then((r) => r.json()),
@@ -91,11 +97,18 @@ export function Reports({ tenant }: ReportsProps) {
   });
   // ─── Date-filtered data ───────────────────────────────────────────────────
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    const byDate = invoices.filter((inv) => {
       const d = inv.createdAt.slice(0, 10);
       return d >= dateFrom && d <= dateTo;
     });
-  }, [invoices, dateFrom, dateTo]);
+    if (!invoiceSearch.trim()) return byDate;
+    const q = invoiceSearch.toLowerCase();
+    return byDate.filter(
+      (inv) =>
+        inv.customerName.toLowerCase().includes(q) ||
+        inv.id.toLowerCase().includes(q)
+    );
+  }, [invoices, dateFrom, dateTo, invoiceSearch]);
 
   const filteredBills = useMemo(() => {
     return supplierBills.filter((b) => {
@@ -151,6 +164,17 @@ export function Reports({ tenant }: ReportsProps) {
       return a.expiryDate.localeCompare(b.expiryDate);
     });
   }, [batches]);
+
+  const searchedExpiry = useMemo(() => {
+    if (!expirySearch.trim()) return expiryTableBatches;
+    const q = expirySearch.toLowerCase();
+    return expiryTableBatches.filter(
+      (b) =>
+        b.itemName.toLowerCase().includes(q) ||
+        b.batchNumber.toLowerCase().includes(q) ||
+        b.supplierName.toLowerCase().includes(q)
+    );
+  }, [expiryTableBatches, expirySearch]);
 
   const isLoading = batchLoading || invoiceLoading || billsLoading || doctorLoading;
 
@@ -324,9 +348,21 @@ export function Reports({ tenant }: ReportsProps) {
           {/* ── Expiry Report ─────────────────────────────────────────── */}
           {activeTab === "expiry" && (
             <div>
-              <p className="text-sm text-muted-foreground mb-4">
-                All batches sorted by urgency — expired first, then expiring soon.
-              </p>
+              <div className="print:hidden flex items-center gap-2 mb-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search item, batch, supplier…"
+                    value={expirySearch}
+                    onChange={(e) => setExpirySearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                {expirySearch && (
+                  <span className="text-xs text-muted-foreground">{searchedExpiry.length} result{searchedExpiry.length !== 1 ? "s" : ""}</span>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -344,7 +380,7 @@ export function Reports({ tenant }: ReportsProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {expiryTableBatches.map((batch) => (
+                    {searchedExpiry.map((batch) => (
                       <tr
                         key={batch.id}
                         className={`border-b border-border/50 transition-colors hover:bg-muted/40 ${
@@ -479,6 +515,21 @@ export function Reports({ tenant }: ReportsProps) {
               <p className="text-sm text-muted-foreground mb-4">
                 {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? "s" : ""} in selected range.
               </p>
+              <div className="print:hidden flex items-center gap-2 mb-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search customer or invoice ID…"
+                    value={invoiceSearch}
+                    onChange={(e) => setInvoiceSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                {invoiceSearch && (
+                  <span className="text-xs text-muted-foreground">{filteredInvoices.length} result{filteredInvoices.length !== 1 ? "s" : ""}</span>
+                )}
+              </div>
               {filteredInvoices.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-3">
@@ -506,13 +557,14 @@ export function Reports({ tenant }: ReportsProps) {
                             </th>
                           )
                         )}
+                        <th className="w-6" />
                       </tr>
                     </thead>
                     <tbody>
                       {filteredInvoices.map((inv) => (
                         <tr
                           key={inv.id}
-                          className="border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer"
+                          className="group border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer"
                           onClick={() => setSelectedInvoice(inv)}
                         >
                           <td className="py-3 pr-4 font-mono text-xs text-muted-foreground uppercase">
@@ -534,6 +586,9 @@ export function Reports({ tenant }: ReportsProps) {
                           <td className="py-3 text-right font-bold text-teal-700">
                             {rupees(inv.grandTotal)}
                           </td>
+                          <td className="py-3 pl-2">
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -548,6 +603,7 @@ export function Reports({ tenant }: ReportsProps) {
                         <td className="py-3 text-right font-bold text-lg text-teal-700">
                           {rupees(filteredInvoices.reduce((s, i) => s + i.grandTotal, 0))}
                         </td>
+                        <td></td>
                       </tr>
                     </tfoot>
                   </table>
@@ -569,6 +625,7 @@ export function Reports({ tenant }: ReportsProps) {
                       {["Invoice", "Customer", "Date", "HSN", "Taxable Amt", "CGST", "SGST", "Total GST", "Grand Total", "Status"].map((h, i) => (
                         <th key={h} className={`text-xs font-semibold text-muted-foreground py-2.5 uppercase tracking-wide ${i >= 4 ? "text-right pr-0" : "text-left pr-4"} ${i < 9 ? "pr-4" : ""}`}>{h}</th>
                       ))}
+                      <th className="w-6" />
                     </tr>
                   </thead>
                   <tbody>
@@ -578,7 +635,7 @@ export function Reports({ tenant }: ReportsProps) {
                       const totalSgst = inv.lineItems.reduce((s, l) => s + (l.sgst ?? 0), 0);
                       const payMap: Record<string, string> = { paid: "bg-green-100 text-green-700 border-green-200", partial: "bg-amber-100 text-amber-700 border-amber-200", unpaid: "bg-red-100 text-red-700 border-red-200" };
                       return (
-                        <tr key={inv.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setSelectedInvoice(inv)}>
+                        <tr key={inv.id} className="group border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setSelectedInvoice(inv)}>
                           <td className="py-3 pr-4 font-mono text-xs text-muted-foreground uppercase">{inv.id}</td>
                           <td className="py-3 pr-4 font-medium">{inv.customerName}</td>
                           <td className="py-3 pr-4 text-xs text-muted-foreground">{format(parseISO(inv.createdAt), "dd MMM yyyy")}</td>
@@ -593,6 +650,9 @@ export function Reports({ tenant }: ReportsProps) {
                               {inv.paymentStatus.charAt(0).toUpperCase() + inv.paymentStatus.slice(1)}
                             </span>
                           </td>
+                          <td className="py-3 pl-2">
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </td>
                         </tr>
                       );
                     })}
@@ -605,6 +665,7 @@ export function Reports({ tenant }: ReportsProps) {
                       <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(filteredInvoices.reduce((s, i) => s + i.lineItems.reduce((x, l) => x + (l.sgst ?? 0), 0), 0))}</td>
                       <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(filteredInvoices.reduce((s, i) => s + (i.totalGst ?? 0), 0))}</td>
                       <td className="py-3 pr-4 text-right font-bold text-lg text-teal-700">{rupees(filteredInvoices.reduce((s, i) => s + i.grandTotal, 0))}</td>
+                      <td></td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -626,6 +687,7 @@ export function Reports({ tenant }: ReportsProps) {
                       {["Supplier", "Invoice #", "Date", "Taxable Amt", "CGST (Input)", "SGST (Input)", "Total GST", "Grand Total", "Status"].map((h, i) => (
                         <th key={h} className={`text-xs font-semibold text-muted-foreground py-2.5 uppercase tracking-wide ${i >= 3 ? "text-right pr-0" : "text-left pr-4"} ${i < 8 ? "pr-4" : ""}`}>{h}</th>
                       ))}
+                      <th className="w-6" />
                     </tr>
                   </thead>
                   <tbody>
@@ -634,7 +696,7 @@ export function Reports({ tenant }: ReportsProps) {
                       const totalSgst = bill.items.reduce((s, i) => s + i.sgst, 0);
                       const payMap: Record<string, string> = { paid: "bg-green-100 text-green-700 border-green-200", partial: "bg-amber-100 text-amber-700 border-amber-200", unpaid: "bg-red-100 text-red-700 border-red-200" };
                       return (
-                        <tr key={bill.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setSelectedBill(bill)}>
+                        <tr key={bill.id} className="group border-b border-border/50 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setSelectedBill(bill)}>
                           <td className="py-3 pr-4 font-medium">{bill.supplierName}</td>
                           <td className="py-3 pr-4 font-mono text-xs">{bill.invoiceNumber}</td>
                           <td className="py-3 pr-4 text-xs text-muted-foreground">{format(parseISO(bill.date), "dd MMM yyyy")}</td>
@@ -648,6 +710,9 @@ export function Reports({ tenant }: ReportsProps) {
                               {bill.paymentStatus.charAt(0).toUpperCase() + bill.paymentStatus.slice(1)}
                             </span>
                           </td>
+                          <td className="py-3 pl-2">
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </td>
                         </tr>
                       );
                     })}
@@ -660,6 +725,7 @@ export function Reports({ tenant }: ReportsProps) {
                       <td className="py-3 pr-4 text-right font-semibold text-blue-600">{rupees(filteredBills.reduce((s, b) => s + b.items.reduce((x, i) => x + i.sgst, 0), 0))}</td>
                       <td className="py-3 pr-4 text-right font-semibold text-blue-700">{rupees(filteredBills.reduce((s, b) => s + b.totalGst, 0))}</td>
                       <td className="py-3 pr-4 text-right font-bold text-lg">{rupees(filteredBills.reduce((s, b) => s + b.grandTotal, 0))}</td>
+                      <td></td>
                       <td></td>
                     </tr>
                   </tfoot>
