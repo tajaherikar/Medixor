@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { useAuthStore } from "@/lib/stores";
 
@@ -187,7 +188,9 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      setSaveError((err as { error?: string }).error ?? `Save failed (${res.status}). Please try again.`);
+      const msg = (err as { error?: string }).error ?? `Save failed (${res.status}). Please try again.`;
+      setSaveError(msg);
+      toast.error("Failed to save invoice", { description: msg });
       return;
     }
     // Invalidate caches so Reports and Inventory reflect changes immediately
@@ -195,6 +198,9 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       queryClient.invalidateQueries({ queryKey: ["invoices", tenant] }),
       queryClient.invalidateQueries({ queryKey: ["inventory", tenant] }),
     ]);
+    toast.success("Invoice saved", {
+      description: `₹${grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })} · ${selectedCustomer?.name ?? ""}`,
+    });
     setSaved(true);
     setTimeout(() => {
       setLineItems([]);
