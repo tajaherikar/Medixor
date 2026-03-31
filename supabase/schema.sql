@@ -118,6 +118,7 @@ create table if not exists doctors (
 create index if not exists doctors_tenantId_idx on doctors ("tenantId");
 
 -- Migration: add referredById to existing invoices table (safe to re-run)
+alter table invoices add column if not exists "referredBy" text;
 alter table invoices add column if not exists "referredById" text;
 create index if not exists invoices_referredById_idx on invoices ("referredById");
 

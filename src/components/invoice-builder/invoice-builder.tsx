@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays } from "date-fns";
 import { Customer, Doctor, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus } from "@/lib/types";
 import { calcLineTotal, calcGrandTotal } from "@/lib/discount";
@@ -52,6 +52,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [strategy, setStrategy] = useState<BatchSelectionStrategy>("fefo");
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
+  const queryClient = useQueryClient();
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [referredBy, setReferredBy] = useState("");
   const [referredById, setReferredById] = useState("");
@@ -60,6 +61,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("unpaid");
   const [paidAmount, setPaidAmount] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers", tenant],
@@ -147,6 +149,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
   async function handleSave() {
     if (!customerId || lineItems.length === 0) return;
+    setSaveError(null);
     const payload = {
       tenantId: tenant,
       customerId,
@@ -177,11 +180,21 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       paidAmount: paymentStatus === "paid" ? grandTotal : paidAmount,
       dueDate: addDays(new Date(), 30).toISOString().split("T")[0],
     };
-    await fetch(`/api/${tenant}/invoices`, {
+    const res = await fetch(`/api/${tenant}/invoices`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setSaveError((err as { error?: string }).error ?? `Save failed (${res.status}). Please try again.`);
+      return;
+    }
+    // Invalidate caches so Reports and Inventory reflect changes immediately
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["invoices", tenant] }),
+      queryClient.invalidateQueries({ queryKey: ["inventory", tenant] }),
+    ]);
     setSaved(true);
     setTimeout(() => {
       setLineItems([]);
@@ -451,6 +464,9 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       >
         {saved ? "Invoice Saved ✓" : "Save Invoice"}
       </Button>
+      {saveError && (
+        <p className="text-sm text-destructive">{saveError}</p>
+      )}
     </div>
   );
 }
