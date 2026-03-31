@@ -26,8 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2 } from "lucide-react";
+import { Trash2, Printer } from "lucide-react";
 import { toast } from "sonner";
+import { InvoicePrintModal } from "@/components/reports/invoice-print-modal";
+import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
 import { useAuthStore } from "@/lib/stores";
 
@@ -63,6 +65,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [paidAmount, setPaidAmount] = useState(0);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
+  const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers", tenant],
@@ -198,6 +202,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       queryClient.invalidateQueries({ queryKey: ["invoices", tenant] }),
       queryClient.invalidateQueries({ queryKey: ["inventory", tenant] }),
     ]);
+    const savedInvoice = await res.json() as Invoice;
+    setLastSavedInvoice(savedInvoice);
     toast.success("Invoice saved", {
       description: `₹${grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })} · ${selectedCustomer?.name ?? ""}`,
     });
@@ -211,6 +217,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       setReferredBy("");
       setReferredById("");
       setSaved(false);
+      // keep lastSavedInvoice so user can still print after reset
     }, 1500);
   }
 
@@ -462,17 +469,34 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
         </Card>
       )}
 
-      <Button
-        onClick={handleSave}
-        disabled={!customerId || lineItems.length === 0 || saved || !isAdmin}
-        className="w-full sm:w-auto"
-        title={!isAdmin ? "Admin access required" : undefined}
-      >
-        {saved ? "Invoice Saved ✓" : "Save Invoice"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={!customerId || lineItems.length === 0 || saved || !isAdmin}
+          className="w-full sm:w-auto"
+          title={!isAdmin ? "Admin access required" : undefined}
+        >
+          {saved ? "Invoice Saved ✓" : "Save Invoice"}
+        </Button>
+        {lastSavedInvoice && (
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => setPrintInvoice(lastSavedInvoice)}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Print Last Invoice
+          </Button>
+        )}
+      </div>
       {saveError && (
         <p className="text-sm text-destructive">{saveError}</p>
       )}
+      <InvoicePrintModal
+        invoice={printInvoice}
+        tenant={tenant}
+        onClose={() => setPrintInvoice(null)}
+      />
     </div>
   );
 }
