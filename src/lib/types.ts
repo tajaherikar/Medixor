@@ -217,9 +217,10 @@ export interface InvoiceLineItem {
   quantity: number;
   discountType?: DiscountType;
   discountValue?: number; // % or flat
-  lineTotal: number;      // after item discount, before GST
+  gstInclusive?: boolean; // true when MRP includes GST
+  lineTotal: number;      // after item discount, before GST (or adjusted for inclusive)
   gstRate: GstRate;
-  taxableAmount: number;  // == lineTotal
+  taxableAmount: number;  // == lineTotal (for exclusive) or lineTotal / (1 + gstRate/100) for inclusive
   cgst: number;
   sgst: number;
   gstAmount: number;

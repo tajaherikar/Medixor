@@ -46,6 +46,7 @@ interface LineItem {
   quantity: number;
   discountType: DiscountType;
   discountValue: number;
+  gstInclusive?: boolean;
   gstRate: GstRate;
 }
 
@@ -132,6 +133,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
             quantity: a.qty,
             discountType: "percentage",
             discountValue: 0,
+            gstInclusive: false,
             gstRate: 12,
           });
         }
@@ -150,10 +152,27 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     );
   }
 
-  const subtotal = lineItems.reduce(
-    (sum, l) => sum + calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue),
-    0
-  );
+  // GST per line item
+  const lineGst = lineItems.map((l) => {
+    const lineTotal = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
+    let taxable: number;
+    let gstAmt: number;
+
+    if (l.gstInclusive) {
+      // GST inclusive: MRP already includes GST
+      gstAmt = lineTotal * (l.gstRate / (100 + l.gstRate));
+      taxable = lineTotal - gstAmt;
+    } else {
+      // GST exclusive: GST added on top
+      taxable = lineTotal;
+      gstAmt = taxable * (l.gstRate / 100);
+    }
+
+    return { taxable, cgst: gstAmt / 2, sgst: gstAmt / 2, gstAmt };
+  });
+  const totalGst = lineGst.reduce((s, g) => s + g.gstAmt, 0);
+
+  const subtotal = lineGst.reduce((s, g) => s + g.taxable, 0);
 
   const { customerDiscountAmount, grandTotal: grandTotalPreGst } = calcGrandTotal(
     subtotal,
@@ -161,13 +180,6 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     customerDiscountValue > 0 ? customerDiscountValue : undefined
   );
 
-  // GST per line item
-  const lineGst = lineItems.map((l) => {
-    const taxable = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
-    const gstAmt = taxable * (l.gstRate / 100);
-    return { taxable, cgst: gstAmt / 2, sgst: gstAmt / 2, gstAmt };
-  });
-  const totalGst = lineGst.reduce((s, g) => s + g.gstAmt, 0);
   const grandTotal = grandTotalPreGst + totalGst;
 
   async function handleSave() {
@@ -182,15 +194,28 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       ...(selectedCustomer?.address && { customerAddress: selectedCustomer.address }),
       lineItems: lineItems.map((l, i) => {
         const lt = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
-        const gstAmt = lt * (l.gstRate / 100);
+        let taxable: number;
+        let gstAmt: number;
+        let lineTotalWithGst: number;
+
+        if (l.gstInclusive) {
+          gstAmt = lt * (l.gstRate / (100 + l.gstRate));
+          taxable = lt - gstAmt;
+          lineTotalWithGst = lt; // MRP already includes GST
+        } else {
+          taxable = lt;
+          gstAmt = taxable * (l.gstRate / 100);
+          lineTotalWithGst = lt + gstAmt; // Add GST to MRP
+        }
+
         return {
           ...l,
-          lineTotal: lt,
-          taxableAmount: lt,
+          lineTotal: taxable, // Always the taxable amount
+          taxableAmount: taxable,
           gstAmount: gstAmt,
           cgst: gstAmt / 2,
           sgst: gstAmt / 2,
-          lineTotalWithGst: lt + gstAmt,
+          lineTotalWithGst,
         };
       }),
       ...(referredBy.trim() && { referredBy: referredBy.trim() }),
@@ -348,6 +373,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                   <TableHead>MRP</TableHead>
                   <TableHead>Qty</TableHead>
                   <TableHead>Discount</TableHead>
+                  <TableHead>GST Type</TableHead>
                   <TableHead>GST %</TableHead>
                   <TableHead className="text-right">Taxable</TableHead>
                   <TableHead className="text-right">CGST</TableHead>
@@ -357,10 +383,10 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lineItems.map((l) => {
+                {lineItems.map((l, index) => {
+                  const gstCalc = lineGst[index];
                   const lineTotal = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
-                  const gstAmt = lineTotal * (l.gstRate / 100);
-                  const halfGst = gstAmt / 2;
+                  const halfGst = gstCalc.gstAmt / 2;
                   return (
                     <TableRow key={l.batchId}>
                       <TableCell className="font-medium">{l.itemName}</TableCell>
@@ -416,6 +442,20 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                       </TableCell>
                       <TableCell>
                         <Select
+                          value={l.gstInclusive ? "inclusive" : "exclusive"}
+                          onValueChange={(v) => updateLineItem(l.batchId, "gstInclusive", v === "inclusive")}
+                        >
+                          <SelectTrigger className="w-24 h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="exclusive">Exclusive</SelectItem>
+                            <SelectItem value="inclusive">Inclusive</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select
                           value={String(l.gstRate)}
                           onValueChange={(v) => updateLineItem(l.batchId, "gstRate", Number(v) as GstRate)}
                         >
@@ -429,10 +469,10 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="text-right text-sm">₹{lineTotal.toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-sm">₹{gstCalc.taxable.toFixed(2)}</TableCell>
                       <TableCell className="text-right text-sm text-blue-600">₹{halfGst.toFixed(2)}</TableCell>
                       <TableCell className="text-right text-sm text-blue-600">₹{halfGst.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-medium">₹{(lineTotal + gstAmt).toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium">₹{(gstCalc.taxable + gstCalc.gstAmt).toFixed(2)}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => removeLineItem(l.batchId)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -491,16 +531,44 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
               {/* Payment status */}
               <Separator className="w-full" />
-              <div className="flex gap-2 items-center w-full justify-end">
-                <span className="text-muted-foreground text-sm">Payment Status</span>
-                <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as PaymentStatus)}>
-                  <SelectTrigger className="w-32 h-8 text-xs">
+              <div className="flex gap-3 items-center w-full justify-end">
+                <span className="text-muted-foreground text-sm font-medium">Payment Status</span>
+                <Select value={paymentStatus} onValueChange={(v) => {
+                  setPaymentStatus(v as PaymentStatus);
+                  if (v === "paid") {
+                    setPaidAmount(grandTotal);
+                  } else if (v === "unpaid") {
+                    setPaidAmount(0);
+                  }
+                }}>
+                  <SelectTrigger className={`w-36 h-9 text-sm font-medium transition-colors ${
+                    paymentStatus === "paid"
+                      ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                      : paymentStatus === "partial"
+                      ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                      : "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                  }`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="partial">Partial</SelectItem>
-                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                    <SelectItem value="unpaid" className="text-red-600 focus:bg-red-50 focus:text-red-700">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                        Credit
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="partial" className="text-amber-600 focus:bg-amber-50 focus:text-amber-700">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                        Partial Payment
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="paid" className="text-green-600 focus:bg-green-50 focus:text-green-700">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        Payment Received
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 {paymentStatus === "partial" && (
@@ -510,9 +578,14 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                     max={grandTotal}
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(Number(e.target.value))}
-                    className="w-28 h-8 text-xs"
+                    className="w-28 h-9 text-sm"
                     placeholder="Amount paid"
                   />
+                )}
+                {paymentStatus === "paid" && (
+                  <div className="text-sm text-green-600 font-medium px-3 py-1 bg-green-50 rounded-md border border-green-200">
+                    ₹{grandTotal.toFixed(2)} received
+                  </div>
                 )}
               </div>
             </div>
