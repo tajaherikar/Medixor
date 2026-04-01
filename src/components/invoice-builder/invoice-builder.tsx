@@ -315,6 +315,11 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
               <SelectItem value="manual">Manual Selection</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground leading-snug">
+            {strategy === "fefo" && "Prioritizes batches expiring soonest to minimize waste and stock aging."}
+            {strategy === "fifo" && "Uses oldest batches first, following first-in-first-out inventory principles."}
+            {strategy === "manual" && "Choose specific batches manually for complete control over allocation."}
+          </p>
         </div>
       </div>
 

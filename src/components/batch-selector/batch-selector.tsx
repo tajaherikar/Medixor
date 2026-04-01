@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExpiryBadge } from "@/components/ui/expiry-badge";
 
 export interface SelectedBatchAllocation {
   batchId: string;
@@ -113,6 +114,11 @@ export function BatchSelector({ tenant, strategy, onAdd }: BatchSelectorProps) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Add Item to Invoice</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1 leading-snug">
+          {strategy === "fefo" && "Strategy: FEFO — Batches expiring soonest will be allocated first to minimize waste."}
+          {strategy === "fifo" && "Strategy: FIFO — Oldest batches will be allocated first."}
+          {strategy === "manual" && "Strategy: Manual — Select specific batches for this allocation."}
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Item Search */}
@@ -187,17 +193,47 @@ export function BatchSelector({ tenant, strategy, onAdd }: BatchSelectorProps) {
 
         {/* Auto-selected batch preview (FEFO/FIFO) */}
         {strategy !== "manual" && selectedItem && sortedBatches.length > 0 && (
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">
-              Auto-allocation ({strategy.toUpperCase()}) — {sortedBatches.length} batch{sortedBatches.length > 1 ? "es" : ""} available
-            </p>
-            {sortedBatches.slice(0, 3).map((b) => (
-              <div key={b.id} className="flex gap-2 items-center">
-                <Badge variant="outline">{b.batchNumber}</Badge>
-                <span>Exp: {format(parseISO(b.expiryDate), "dd MMM yyyy")}</span>
-                <span>Qty: {b.availableQty}</span>
-              </div>
-            ))}
+          <div className="text-sm space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-foreground">
+                Batch Allocation Preview
+              </p>
+              <Badge variant="secondary" className="text-xs">
+                {sortedBatches.length} available
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {sortedBatches.slice(0, 3).map((b, idx) => {
+                // Calculate how much of requested quantity this batch will fulfill
+                let allocatedQty = 0;
+                let remaining = requestedQty;
+                for (let i = 0; i <= idx; i++) {
+                  if (i === idx) {
+                    allocatedQty = Math.min(remaining, sortedBatches[i].availableQty);
+                  } else {
+                    remaining -= sortedBatches[i].availableQty;
+                  }
+                }
+                return (
+                  <div key={b.id} className="flex items-center gap-2 p-2 bg-accent/50 rounded-md border border-border/50">
+                    <Badge variant="default" className="text-xs font-bold">
+                      P{idx + 1}
+                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground">
+                          {b.batchNumber}
+                        </span>
+                        <ExpiryBadge expiryDate={b.expiryDate} showRelative={true} />
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        ₹{b.mrp} · Qty: {b.availableQty} {allocatedQty > 0 && `(${allocatedQty} will be taken)`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
