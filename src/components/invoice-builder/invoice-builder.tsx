@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays } from "date-fns";
 import { Customer, Doctor, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus, UnitType } from "@/lib/types";
@@ -29,6 +29,7 @@ import {
 import { Trash2, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { InvoicePrintModal } from "@/components/reports/invoice-print-modal";
+import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
 import { useAuthStore, useSettingsStore } from "@/lib/stores";
@@ -69,6 +70,19 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+
+  // Browser beforeunload warning for unsaved changes
+  const hasUnsavedChanges = customerId && lineItems.length > 0 && !saved;
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasUnsavedChanges, saved]);
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers", tenant],
@@ -524,6 +538,22 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       {saveError && (
         <p className="text-sm text-destructive">{saveError}</p>
       )}
+      <UnsavedChangesModal
+        open={showUnsavedModal}
+        onSave={handleSave}
+        onDiscard={() => {
+          setShowUnsavedModal(false);
+          setLineItems([]);
+          setCustomerId("");
+          setCustomerDiscountValue(0);
+          setPaymentStatus("unpaid");
+          setPaidAmount(0);
+          setReferredBy("");
+          setReferredById("");
+        }}
+        title="Unsaved Invoice"
+        description="You have unsaved changes to this invoice. Save before leaving?"
+      />
       <InvoicePrintModal
         invoice={printInvoice}
         tenant={tenant}

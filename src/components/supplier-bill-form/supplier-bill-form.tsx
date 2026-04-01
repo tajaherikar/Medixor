@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Supplier, GstRate, UnitType } from "@/lib/types";
 import { useAuthStore } from "@/lib/stores";
+import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
 
@@ -78,6 +80,7 @@ interface SupplierBillFormProps {
 
 export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
   const [submitted, setSubmitted] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
 
@@ -96,7 +99,7 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
     handleSubmit,
     setValue,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
     defaultValues: {
@@ -111,6 +114,17 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
   const watchedItems = useWatch({ control, name: "items" });
   const watchedSupplierId = useWatch({ control, name: "supplierId" });
   const selectedSupplier = suppliers.find((s) => s.id === watchedSupplierId);
+
+  // Browser beforeunload warning for unsaved changes
+  useEffect(() => {
+    if (!isDirty || submitted) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty, submitted]);
 
   // Live totals
   const itemTotals = (watchedItems ?? []).map((item) => {
@@ -192,9 +206,16 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = typeof err.error === "string" ? err.error : (err.message ?? res.statusText);
-      alert(`Failed to save bill: ${msg}`);
+      toast.error("Failed to save bill", {
+        description: msg,
+        duration: 5000,
+      });
       return;
     }
+    toast.success("Bill saved successfully", {
+      description: `Invoice ${payload.invoiceNumber}`,
+      duration: 3000,
+    });
     setSubmitted(true);
     setTimeout(() => {
       reset();
@@ -467,6 +488,20 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
         title={!isAdmin ? "Admin access required" : undefined}>
         {submitted ? "Bill Saved ✓" : isSubmitting ? "Saving..." : "Save Supplier Bill"}
       </Button>
+
+      <UnsavedChangesModal
+        open={showUnsavedModal}
+        onSave={() => {
+          setShowUnsavedModal(false);
+          handleSubmit(onSubmit)();
+        }}
+        onDiscard={() => {
+          setShowUnsavedModal(false);
+          reset();
+        }}
+        title="Unsaved Bill"
+        description="You have unsaved changes to this supplier bill. Save before leaving?"
+      />
     </form>
   );
 }
