@@ -2,6 +2,60 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* ── Login page animations ──────────────────────────────────────────────── */
+@keyframes login-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes login-slide-in {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes login-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-14px); }
+}
+@keyframes login-glow {
+  0%, 100% { box-shadow: 0 0 16px 3px oklch(0.52 0.15 196 / 0.40); }
+  50%       { box-shadow: 0 0 36px 8px oklch(0.52 0.15 196 / 0.70); }
+}
+
+.login-fade-up {
+  animation: login-fade-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.login-slide-in {
+  animation: login-slide-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 80ms;
+}
+.login-glow {
+  animation: login-glow 2.8s ease-in-out infinite;
+}
+.login-blob {
+  position: absolute;
+  border-radius: 9999px;
+  animation: login-float 7s ease-in-out infinite;
+  will-change: transform;
+}
+.login-pill {
+  position: absolute;
+  width: 52px;
+  height: 20px;
+  border-radius: 99px;
+  border: 1.5px solid oklch(0.52 0.15 196 / 0.35);
+  background: oklch(0.52 0.15 196 / 0.07);
+  animation: login-float 6s ease-in-out infinite;
+  will-change: transform;
+}
+.login-diamond {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid oklch(0.52 0.15 196 / 0.38);
+  transform: rotate(45deg);
+  animation: login-float 8s ease-in-out infinite;
+  will-change: transform;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
