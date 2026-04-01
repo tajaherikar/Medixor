@@ -204,6 +204,11 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     const taxableAmount = enrichedItems.reduce((s, i) => s + i.taxableAmount, 0);
     const totalGst = enrichedItems.reduce((s, i) => s + i.cgst + i.sgst, 0);
 
+    // Calculate dueDate (30 days from bill date)
+    const billDate = new Date(data.date);
+    const dueDate = new Date(billDate);
+    dueDate.setDate(dueDate.getDate() + 30);
+
     const basePayload = {
       ...data,
       items: enrichedItems,
@@ -212,6 +217,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
       ...(supplier?.licenseNumber && { supplierLicenseNumber: supplier.licenseNumber }),
       ...(supplier?.address && { supplierAddress: supplier.address }),
       tenantId: tenant,
+      dueDate: dueDate.toISOString().split('T')[0],
       taxableAmount,
       totalGst,
       grandTotal: taxableAmount + totalGst,
@@ -225,12 +231,13 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
       createdAt: initialBill?.createdAt ?? new Date().toISOString(),
     };
 
-    // For update - only update items and dates, preserve payment status
+    // For update - preserve payment status and metadata, update bill details
     const updatePayload = {
       ...basePayload,
       paymentStatus: initialBill?.paymentStatus,
       paidAmount: initialBill?.paidAmount,
       createdAt: initialBill?.createdAt,
+      dueDate: initialBill?.dueDate ?? basePayload.dueDate,
     };
 
     const payload = isEditing ? updatePayload : createPayload;
