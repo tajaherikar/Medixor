@@ -158,9 +158,12 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
   });
 
   // Client-side low stock filter: show only batches with qty < threshold
-  const batches = statusFilter === "low_stock"
-    ? rawBatches.filter((b) => b.availableQty < lowStockThreshold)
-    : rawBatches;
+  const batches = useMemo(
+    () => statusFilter === "low_stock"
+      ? rawBatches.filter((b) => b.availableQty < lowStockThreshold)
+      : rawBatches,
+    [statusFilter, rawBatches, lowStockThreshold]
+  );
 
   const table = useReactTable({
     data: batches,
