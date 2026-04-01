@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, type ChangeEvent } from "react";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,6 +39,7 @@ const itemSchema = z.object({
   purchasePrice: z.number({ error: "Purchase price must be > 0" }).positive("Purchase price must be > 0"),
   quantity:      z.number({ error: "Quantity must be > 0" }).int().positive("Quantity must be > 0"),
   gstRate:       z.number(),
+  gstInclusive:  z.boolean().optional(),
   unitType:      z.string().optional(),
   packSize:      z.number().int().positive().optional(),
 });
@@ -61,6 +62,7 @@ const emptyItem = {
   purchasePrice: 0,
   quantity: 0,
   gstRate: 12,
+  gstInclusive: false,
   unitType: "",
   packSize: undefined as number | undefined,
 };
@@ -112,8 +114,18 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
 
   // Live totals
   const itemTotals = (watchedItems ?? []).map((item) => {
-    const taxable = (item.purchasePrice || 0) * (item.quantity || 0);
+    const qty = item.quantity || 0;
+    const price = item.purchasePrice || 0;
     const rate = (item.gstRate || 0) / 100;
+    const gross = price * qty;
+
+    if (item.gstInclusive) {
+      const taxable = rate > 0 ? gross / (1 + rate) : gross;
+      const gst = gross - taxable;
+      return { taxable, cgst: gst / 2, sgst: gst / 2, lineTotal: gross };
+    }
+
+    const taxable = gross;
     const gst = taxable * rate;
     return { taxable, cgst: gst / 2, sgst: gst / 2, lineTotal: taxable + gst };
   });
@@ -125,15 +137,32 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
     const supplier = suppliers.find((s) => s.id === data.supplierId);
 
     const enrichedItems = data.items.map((item) => {
-      const taxableAmount = item.purchasePrice * item.quantity;
-      const gstAmount = taxableAmount * (item.gstRate / 100);
+      const qty = item.quantity;
+      const price = item.purchasePrice;
+      const rate = item.gstRate / 100;
+      const gross = price * qty;
+
+      let taxableAmount: number;
+      let gstAmount: number;
+      let lineTotal: number;
+
+      if (item.gstInclusive) {
+        taxableAmount = rate > 0 ? gross / (1 + rate) : gross;
+        gstAmount = gross - taxableAmount;
+        lineTotal = gross;
+      } else {
+        taxableAmount = gross;
+        gstAmount = taxableAmount * rate;
+        lineTotal = taxableAmount + gstAmount;
+      }
+
       return {
         ...item,
         hsnCode: item.hsnCode ?? "",
         taxableAmount,
         cgst: gstAmount / 2,
         sgst: gstAmount / 2,
-        lineTotal: taxableAmount + gstAmount,
+        lineTotal,
       };
     });
 
@@ -387,6 +416,15 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
                         ))}
                       </SelectContent>
                     </Select>
+                    <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(watchedItems?.[index]?.gstInclusive)}
+                        onChange={(e) => setValue(`items.${index}.gstInclusive`, e.target.checked)}
+                        className="h-4 w-4 rounded border border-input text-primary focus-visible:outline-none"
+                      />
+                      <span>Inclusive GST in line total</span>
+                    </label>
                   </div>
                   <div className="space-y-1">
                     <Label>Line Total</Label>

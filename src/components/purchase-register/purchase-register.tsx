@@ -200,7 +200,14 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                                 <TableBody>
                                   {bill.items.map((item, idx) => (
                                     <TableRow key={idx} className="text-xs border-0">
-                                      <TableCell className="py-1.5 pl-0 font-medium">{item.itemName}</TableCell>
+                                      <TableCell className="py-1.5 pl-0 font-medium">
+                                        {item.itemName}
+                                        {item.gstInclusive ? (
+                                          <span className="ml-2 text-[10px] uppercase text-green-600">(GST incl.)</span>
+                                        ) : (
+                                          <span className="ml-2 text-[10px] uppercase text-muted-foreground">(GST excl.)</span>
+                                        )}
+                                      </TableCell>
                                       <TableCell className="py-1.5 font-mono hidden sm:table-cell">{item.hsnCode}</TableCell>
                                       <TableCell className="py-1.5 font-mono hidden sm:table-cell">{item.batchNumber}</TableCell>
                                       <TableCell className="py-1.5 text-right">{item.quantity}</TableCell>

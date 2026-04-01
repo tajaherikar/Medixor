@@ -139,7 +139,8 @@ export interface SupplierBillItem {
   purchasePrice: number;
   quantity: number;
   gstRate: GstRate; // 0 | 5 | 12 | 18 | 28
-  taxableAmount: number; // purchasePrice * qty before GST
+  gstInclusive?: boolean; // true when line total including GST
+  taxableAmount: number; // purchasePrice * qty before GST (or adjusted for inclusive)
   cgst: number;
   sgst: number;
   lineTotal: number; // after GST
