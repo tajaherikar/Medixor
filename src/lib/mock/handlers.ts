@@ -181,6 +181,16 @@ export const handlers = [
     return HttpResponse.json(newBill, { status: 201 });
   }),
 
+  http.put(`${BASE}/:tenant/supplier-bills/:billId`, async ({ request, params }) => {
+    const tenant = params.tenant as string;
+    const billId = params.billId as string;
+    const body = await request.json() as Record<string, unknown>;
+
+    await db.updateSupplierBill(billId, body as never);
+
+    return HttpResponse.json({ success: true, message: "Bill updated successfully" });
+  }),
+
   // ── Payments ──────────────────────────────────────────────────────────────
   http.get(`${BASE}/:tenant/payments`, async ({ request, params }) => {
     const tenant = params.tenant as string;
