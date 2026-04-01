@@ -119,6 +119,14 @@ export async function addSupplierBill(bill: SupplierBill): Promise<void> {
   if (error) throw error;
 }
 
+export async function updateSupplierBill(id: string, updates: Partial<SupplierBill>): Promise<void> {
+  const { error } = await supabase
+    .from("supplier_bills")
+    .update(updates)
+    .eq("id", id);
+  if (error) throw error;
+}
+
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 export async function getPayments(tenantId: string): Promise<Payment[]> {

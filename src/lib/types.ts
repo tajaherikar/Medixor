@@ -166,6 +166,7 @@ export interface SupplierBill {
   paidAmount: number;
   dueDate: string;
   createdAt: string;
+  editedAt?: string;
 }
 
 // ─── Payment ──────────────────────────────────────────────────────────────────

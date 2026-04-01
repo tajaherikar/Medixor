@@ -17,9 +17,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ClipboardList, ChevronDown, ChevronRight, CreditCard, IndianRupee } from "lucide-react";
+import { ClipboardList, ChevronDown, ChevronRight, CreditCard, IndianRupee, Edit } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
 import { format, parseISO } from "date-fns";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { SupplierBillForm } from "@/components/supplier-bill-form/supplier-bill-form";
 
 interface PurchaseRegisterProps { tenant: string; }
 
@@ -43,6 +51,7 @@ function PayStatus({ status }: { status: string }) {
 export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [payBill, setPayBill] = useState<SupplierBill | null>(null);
+  const [editBill, setEditBill] = useState<SupplierBill | null>(null);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const [payAmount, setPayAmount] = useState("");
@@ -164,16 +173,30 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                         <TableCell className="text-right font-semibold text-sm text-red-600 hidden sm:table-cell">{balance > 0 ? rupees(balance) : "—"}</TableCell>
                         <TableCell><PayStatus status={bill.paymentStatus} /></TableCell>
                         <TableCell>
-                          {bill.paymentStatus !== "paid" && isAdmin && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs gap-1"
-                              onClick={(e) => { e.stopPropagation(); setPayBill(bill); setPayAmount(String(balance)); }}
-                            >
-                              <CreditCard className="h-3 w-3" />Pay
-                            </Button>
-                          )}
+                          <div className="flex gap-2">
+                            {isAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs gap-1"
+                                onClick={(e) => { e.stopPropagation(); setEditBill(bill); }}
+                                title="Edit bill and add/remove items"
+                                disabled={bill.paymentStatus === "paid"}
+                              >
+                                <Edit className="h-3 w-3" />Edit
+                              </Button>
+                            )}
+                            {bill.paymentStatus !== "paid" && isAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs gap-1"
+                                onClick={(e) => { e.stopPropagation(); setPayBill(bill); setPayAmount(String(balance)); }}
+                              >
+                                <CreditCard className="h-3 w-3" />Pay
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
 
@@ -182,6 +205,11 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                         <TableRow className="bg-muted/30">
                           <TableCell colSpan={12} className="py-0 px-4">
                             <div className="py-3">
+                              {bill.editedAt && (
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  Last Edited: {format(parseISO(bill.editedAt), "dd MMM yyyy, hh:mm a")}
+                                </p>
+                              )}
                               <p className="text-xs font-semibold text-muted-foreground mb-2">Bill Items</p>
                               <Table>
                                 <TableHeader>
@@ -284,6 +312,31 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Bill Sheet */}
+      <Sheet open={!!editBill} onOpenChange={(o) => !o && setEditBill(null)}>
+        <SheetContent side="right" className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Edit Supplier Bill</SheetTitle>
+            <SheetDescription>
+              Modify bill items and details. Payment status will not be affected.
+            </SheetDescription>
+          </SheetHeader>
+          {editBill && (
+            <div>
+              <SupplierBillForm
+                tenant={tenant}
+                billId={editBill.id}
+                initialBill={editBill}
+                onSuccess={() => {
+                  setEditBill(null);
+                  queryClient.invalidateQueries({ queryKey: ["supplier-bills", tenant] });
+                }}
+              />
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

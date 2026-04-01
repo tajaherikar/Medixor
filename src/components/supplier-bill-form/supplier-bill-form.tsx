@@ -21,9 +21,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
-import { Supplier, GstRate, UnitType } from "@/lib/types";
+import { Supplier, GstRate, UnitType, SupplierBill } from "@/lib/types";
 import { useAuthStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
+import { format, parseISO } from "date-fns";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
 
@@ -76,13 +77,16 @@ function rupees(n: number) {
 interface SupplierBillFormProps {
   tenant: string;
   onSuccess?: () => void;
+  billId?: string;
+  initialBill?: SupplierBill;
 }
 
-export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
+export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: SupplierBillFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
+  const isEditing = !!billId && !!initialBill;
 
   const { data: suppliers = [] } = useQuery<Supplier[]>({
     queryKey: ["suppliers", tenant],
@@ -102,7 +106,24 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
     formState: { errors, isSubmitting, isDirty },
   } = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
-    defaultValues: {
+    defaultValues: isEditing && initialBill ? {
+      supplierId: initialBill.supplierId,
+      invoiceNumber: initialBill.invoiceNumber,
+      date: initialBill.date,
+      items: initialBill.items.map(item => ({
+        itemName: item.itemName,
+        hsnCode: item.hsnCode,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+        mrp: item.mrp,
+        purchasePrice: item.purchasePrice,
+        quantity: item.quantity,
+        gstRate: item.gstRate as GstRate,
+        gstInclusive: item.gstInclusive,
+        unitType: item.unitType,
+        packSize: item.packSize,
+      })),
+    } : {
       supplierId: "",
       invoiceNumber: "",
       date: new Date().toISOString().split("T")[0],
@@ -183,7 +204,7 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
     const taxableAmount = enrichedItems.reduce((s, i) => s + i.taxableAmount, 0);
     const totalGst = enrichedItems.reduce((s, i) => s + i.cgst + i.sgst, 0);
 
-    const payload = {
+    const basePayload = {
       ...data,
       items: enrichedItems,
       supplierName: supplier?.name ?? "",
@@ -194,25 +215,45 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
       taxableAmount,
       totalGst,
       grandTotal: taxableAmount + totalGst,
-      paymentStatus: "pending",
-      paidAmount: 0,
-      createdAt: new Date().toISOString(),
     };
-    const res = await fetch(`/api/${tenant}/supplier-bills`, {
-      method: "POST",
+
+    // For create - add metadata
+    const createPayload = {
+      ...basePayload,
+      paymentStatus: initialBill?.paymentStatus ?? "unpaid",
+      paidAmount: initialBill?.paidAmount ?? 0,
+      createdAt: initialBill?.createdAt ?? new Date().toISOString(),
+    };
+
+    // For update - only update items and dates, preserve payment status
+    const updatePayload = {
+      ...basePayload,
+      paymentStatus: initialBill?.paymentStatus,
+      paidAmount: initialBill?.paidAmount,
+      createdAt: initialBill?.createdAt,
+    };
+
+    const payload = isEditing ? updatePayload : createPayload;
+    const method = isEditing ? "PUT" : "POST";
+    const url = isEditing 
+      ? `/api/${tenant}/supplier-bills/${billId}`
+      : `/api/${tenant}/supplier-bills`;
+
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = typeof err.error === "string" ? err.error : (err.message ?? res.statusText);
-      toast.error("Failed to save bill", {
+      toast.error(`Failed to ${isEditing ? 'update' : 'save'} bill`, {
         description: msg,
         duration: 5000,
       });
       return;
     }
-    toast.success("Bill saved successfully", {
+    toast.success(`Bill ${isEditing ? 'updated' : 'saved'} successfully`, {
       description: `Invoice ${payload.invoiceNumber}`,
       duration: 3000,
     });
@@ -225,7 +266,19 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pt-0 p-4">
+      {/* Form Header */}
+      <div className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold">
+          {isEditing ? "Edit Supplier Bill" : "Add Supplier Bill"}
+        </h2>
+        {isEditing && initialBill?.editedAt && (
+          <p className="text-xs text-muted-foreground">
+            Last Edited: {format(parseISO(initialBill.editedAt), "dd MMM yyyy, hh:mm a")}
+          </p>
+        )}
+      </div>
+
       {/* Header Fields */}
       <Card>
         <CardHeader>
@@ -235,7 +288,7 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
           {/* Supplier */}
           <div className="space-y-1">
             <Label>Supplier</Label>
-            <Select onValueChange={(v) => setValue("supplierId", v)}>
+            <Select value={watchedSupplierId} onValueChange={(v) => setValue("supplierId", v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select supplier" />
               </SelectTrigger>
@@ -486,7 +539,7 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
 
       <Button type="submit" disabled={isSubmitting || submitted || !isAdmin} className="w-full sm:w-auto"
         title={!isAdmin ? "Admin access required" : undefined}>
-        {submitted ? "Bill Saved ✓" : isSubmitting ? "Saving..." : "Save Supplier Bill"}
+        {submitted ? (isEditing ? "Bill Updated ✓" : "Bill Saved ✓") : isSubmitting ? (isEditing ? "Updating..." : "Saving...") : (isEditing ? "Update Bill" : "Save Supplier Bill")}
       </Button>
 
       <UnsavedChangesModal
