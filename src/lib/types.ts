@@ -12,6 +12,62 @@ export type GstRate = 0 | 5 | 12 | 18 | 28;
 
 export type DoctorType = "doctor" | "lab" | "consultant";
 
+// ─── Pharmaceutical Unit Types ────────────────────────────────────────────────
+// Dosage form of the medicine (used in inventory & billing)
+export type UnitType =
+  // Solid / Oral Solid
+  | "Tab"        // Tablet (plain)
+  | "Cap"        // Capsule
+  | "SR Tab"     // Sustained Release Tablet
+  | "ER Tab"     // Extended Release Tablet
+  | "XR Tab"     // Extended Release (alternate brand labelling)
+  | "CR Tab"     // Controlled Release Tablet
+  | "EC Tab"     // Enteric Coated Tablet (acid-resistant)
+  | "DT"         // Dispersible Tablet (dissolves in water - paediatric)
+  | "MD Tab"     // Mouth Dissolving / Fast Dissolving Tablet
+  | "Chew Tab"   // Chewable Tablet
+  | "Eff Tab"    // Effervescent Tablet
+  | "SL Tab"     // Sub-Lingual Tablet
+  | "SF Tab"     // Sugar-Free Tablet
+  | "Loz"        // Lozenge
+  | "Gran"       // Granules
+  | "Pellets"    // Pellets / Sprinkles
+  | "Sachet"     // Sachet (ORS, probiotics, etc.)
+  // Liquid
+  | "Syp"        // Syrup
+  | "Susp"       // Suspension (shake before use)
+  | "Sol"        // Solution
+  | "Drops"      // Oral Drops
+  | "Eye Drops"  // Ophthalmic Drops
+  | "Ear Drops"  // Otic Drops
+  | "Nasal Drops"// Nasal Drops
+  | "Nasal Spray"// Nasal Spray
+  | "Mouth Wash" // Mouth Wash / Gargle
+  // Injectable
+  | "Inj"        // Injection (ampoule or vial)
+  | "Vial"       // Multi-dose Vial (insulin, vaccines)
+  | "Amp"        // Ampoule (sealed glass)
+  | "IV Inf"     // IV Infusion (NS, RL, DNS bag)
+  // Topical / External
+  | "Cream"      // Cream (tube/jar)
+  | "Oint"       // Ointment
+  | "Gel"        // Gel
+  | "Lotion"     // Lotion
+  | "Dusting Pwd"// Dusting Powder
+  | "Spray"      // Topical / Throat Spray
+  | "Patch"      // Transdermal Patch
+  | "Shampoo"    // Medicated Shampoo
+  | "Soap"       // Medicated Soap
+  // Respiratory
+  | "MDI"        // Metered Dose Inhaler (puffer)
+  | "Rotacap"    // Rotahaler Capsule (for inhalation)
+  | "Turbuhaler" // Turbuhaler Dry Powder Inhaler
+  | "Neb Sol"    // Nebulization Solution
+  // Other
+  | "Supp"       // Suppository
+  | "Pessary"    // Vaginal Pessary
+  | "Device";    // Medical Device (strips, syringes, lancets);
+
 // ─── App User ────────────────────────────────────────────────────────────────
 
 export type UserRole = "admin" | "viewer";
@@ -67,6 +123,8 @@ export interface Batch {
   availableQty: number;
   originalQty: number;
   status: InventoryStatus;
+  unitType?: UnitType;  // dosage form (Tab, Cap, Syp, Inj, Cream...)
+  packSize?: number;    // units per strip/bottle (e.g. 10 for Tab 10, 60 for 60ml)
   createdAt: string; // ISO date string — used for FIFO ordering
 }
 
@@ -85,6 +143,8 @@ export interface SupplierBillItem {
   cgst: number;
   sgst: number;
   lineTotal: number; // after GST
+  unitType?: UnitType;
+  packSize?: number;
 }
 
 export interface SupplierBill {
@@ -147,6 +207,8 @@ export interface Customer {
 export interface InvoiceLineItem {
   batchId: string;
   itemName: string;
+  unitType?: UnitType;
+  packSize?: number;
   hsnCode: string;
   batchNumber: string;
   expiryDate: string;

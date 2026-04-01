@@ -79,6 +79,20 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
       ),
     },
     {
+      id: "unit",
+      header: "Unit",
+      meta: { className: "hidden md:table-cell" },
+      cell: ({ row }) => {
+        const { unitType, packSize } = row.original;
+        if (!unitType) return <span className="text-muted-foreground text-xs">—</span>;
+        return (
+          <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            {unitType}{packSize ? ` ${packSize}` : ""}
+          </span>
+        );
+      },
+    },
+    {
       accessorKey: "expiryDate",
       header: "Expiry Date",
       cell: ({ row }) => <ExpiryBadge expiryDate={row.original.expiryDate} />,

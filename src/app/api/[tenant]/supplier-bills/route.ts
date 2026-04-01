@@ -27,6 +27,8 @@ export async function POST(
       mrp: number;
       purchasePrice: number;
       quantity: number;
+      unitType?: string;
+      packSize?: number;
     }>;
 
     const taxableAmount = items.reduce((sum, i) => sum + i.purchasePrice * i.quantity, 0);
@@ -62,6 +64,8 @@ export async function POST(
         availableQty: item.quantity,
         originalQty: item.quantity,
         status: getInventoryStatus(item.expiryDate),
+        ...(item.unitType && { unitType: item.unitType as Batch["unitType"] }),
+        ...(item.packSize && { packSize: item.packSize }),
         createdAt: new Date().toISOString(),
       };
       await db.addBatch(newBatch);

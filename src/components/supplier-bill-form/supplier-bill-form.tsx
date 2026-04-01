@@ -13,12 +13,14 @@ import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
-import { Supplier, GstRate } from "@/lib/types";
+import { Supplier, GstRate, UnitType } from "@/lib/types";
 import { useAuthStore } from "@/lib/stores";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
@@ -37,6 +39,8 @@ const itemSchema = z.object({
   purchasePrice: z.number({ error: "Purchase price must be > 0" }).positive("Purchase price must be > 0"),
   quantity:      z.number({ error: "Quantity must be > 0" }).int().positive("Quantity must be > 0"),
   gstRate:       z.number(),
+  unitType:      z.string().optional(),
+  packSize:      z.number().int().positive().optional(),
 });
 
 const billSchema = z.object({
@@ -57,6 +61,8 @@ const emptyItem = {
   purchasePrice: 0,
   quantity: 0,
   gstRate: 12,
+  unitType: "",
+  packSize: undefined as number | undefined,
 };
 
 function rupees(n: number) {
@@ -273,7 +279,94 @@ export function SupplierBillForm({ tenant, onSuccess }: SupplierBillFormProps) {
                     {errors.items?.[index]?.purchasePrice && <p className="text-xs text-destructive">{errors.items[index]!.purchasePrice!.message}</p>}
                   </div>
 
-                  {/* Row 3 */}
+                  {/* Row 3 — Unit + Pack Size + Quantity + GST */}
+                  <div className="space-y-1">
+                    <Label>Unit Type <span className="text-muted-foreground">(optional)</span></Label>
+                    <Select
+                      value={emptyItem.unitType}
+                      onValueChange={(v) => setValue(`items.${index}.unitType`, v as UnitType)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="e.g. Tab" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Solid / Oral Solid</SelectLabel>
+                          <SelectItem value="Tab">Tab — Tablet</SelectItem>
+                          <SelectItem value="Cap">Cap — Capsule</SelectItem>
+                          <SelectItem value="SR Tab">SR Tab — Sustained Release</SelectItem>
+                          <SelectItem value="ER Tab">ER Tab — Extended Release</SelectItem>
+                          <SelectItem value="XR Tab">XR Tab — Extended Release (XR)</SelectItem>
+                          <SelectItem value="CR Tab">CR Tab — Controlled Release</SelectItem>
+                          <SelectItem value="EC Tab">EC Tab — Enteric Coated</SelectItem>
+                          <SelectItem value="DT">DT — Dispersible Tablet</SelectItem>
+                          <SelectItem value="MD Tab">MD Tab — Mouth Dissolving</SelectItem>
+                          <SelectItem value="Chew Tab">Chew Tab — Chewable</SelectItem>
+                          <SelectItem value="Eff Tab">Eff Tab — Effervescent</SelectItem>
+                          <SelectItem value="SL Tab">SL Tab — Sub-Lingual</SelectItem>
+                          <SelectItem value="SF Tab">SF Tab — Sugar Free</SelectItem>
+                          <SelectItem value="Loz">Loz — Lozenge</SelectItem>
+                          <SelectItem value="Gran">Gran — Granules</SelectItem>
+                          <SelectItem value="Pellets">Pellets — Sprinkles</SelectItem>
+                          <SelectItem value="Sachet">Sachet</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Liquid</SelectLabel>
+                          <SelectItem value="Syp">Syp — Syrup</SelectItem>
+                          <SelectItem value="Susp">Susp — Suspension</SelectItem>
+                          <SelectItem value="Sol">Sol — Solution</SelectItem>
+                          <SelectItem value="Drops">Drops — Oral Drops</SelectItem>
+                          <SelectItem value="Eye Drops">Eye Drops</SelectItem>
+                          <SelectItem value="Ear Drops">Ear Drops</SelectItem>
+                          <SelectItem value="Nasal Drops">Nasal Drops</SelectItem>
+                          <SelectItem value="Nasal Spray">Nasal Spray</SelectItem>
+                          <SelectItem value="Mouth Wash">Mouth Wash</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Injectable</SelectLabel>
+                          <SelectItem value="Inj">Inj — Injection</SelectItem>
+                          <SelectItem value="Vial">Vial</SelectItem>
+                          <SelectItem value="Amp">Amp — Ampoule</SelectItem>
+                          <SelectItem value="IV Inf">IV Inf — IV Infusion</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Topical / External</SelectLabel>
+                          <SelectItem value="Cream">Cream</SelectItem>
+                          <SelectItem value="Oint">Oint — Ointment</SelectItem>
+                          <SelectItem value="Gel">Gel</SelectItem>
+                          <SelectItem value="Lotion">Lotion</SelectItem>
+                          <SelectItem value="Dusting Pwd">Dusting Pwd — Dusting Powder</SelectItem>
+                          <SelectItem value="Spray">Spray — Topical/Throat</SelectItem>
+                          <SelectItem value="Patch">Patch — Transdermal</SelectItem>
+                          <SelectItem value="Shampoo">Shampoo — Medicated</SelectItem>
+                          <SelectItem value="Soap">Soap — Medicated</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Respiratory</SelectLabel>
+                          <SelectItem value="MDI">MDI — Metered Dose Inhaler</SelectItem>
+                          <SelectItem value="Rotacap">Rotacap — Rotahaler Capsule</SelectItem>
+                          <SelectItem value="Turbuhaler">Turbuhaler</SelectItem>
+                          <SelectItem value="Neb Sol">Neb Sol — Nebulization Solution</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Other</SelectLabel>
+                          <SelectItem value="Supp">Supp — Suppository</SelectItem>
+                          <SelectItem value="Pessary">Pessary — Vaginal Pessary</SelectItem>
+                          <SelectItem value="Device">Device — Medical Device</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Pack Size <span className="text-muted-foreground">(optional)</span></Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="e.g. 10"
+                      {...register(`items.${index}.packSize`, { valueAsNumber: true })}
+                    />
+                    <p className="text-xs text-muted-foreground">Units per strip/bottle (e.g. 10 → Tab 10)</p>
+                  </div>
                   <div className="space-y-1">
                     <Label>Quantity</Label>
                     <Input type="number" placeholder="100" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />

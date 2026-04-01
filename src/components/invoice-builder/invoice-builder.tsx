@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays } from "date-fns";
-import { Customer, Doctor, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus } from "@/lib/types";
+import { Customer, Doctor, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus, UnitType } from "@/lib/types";
 import { calcLineTotal, calcGrandTotal } from "@/lib/discount";
 import { BatchSelector, SelectedBatchAllocation } from "@/components/batch-selector/batch-selector";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,8 @@ import { useAuthStore, useSettingsStore } from "@/lib/stores";
 interface LineItem {
   batchId: string;
   itemName: string;
+  unitType?: UnitType;
+  packSize?: number;
   hsnCode: string;
   batchNumber: string;
   expiryDate: string;
@@ -107,6 +109,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
           next.push({
             batchId: a.batchId,
             itemName: a.itemName,
+            ...(a.unitType && { unitType: a.unitType }),
+            ...(a.packSize && { packSize: a.packSize }),
             hsnCode: "3004",
             batchNumber: a.batchNumber,
             expiryDate: a.expiryDate,
@@ -318,6 +322,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Item</TableHead>
+                  <TableHead className="hidden md:table-cell">Unit</TableHead>
                   <TableHead>HSN</TableHead>
                   <TableHead>Batch</TableHead>
                   <TableHead>Expiry</TableHead>
@@ -340,6 +345,13 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                   return (
                     <TableRow key={l.batchId}>
                       <TableCell className="font-medium">{l.itemName}</TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {l.unitType ? (
+                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                            {l.unitType}{l.packSize ? ` ${l.packSize}` : ""}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell>
                         <Input
                           value={l.hsnCode}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Batch, BatchSelectionStrategy } from "@/lib/types";
+import { Batch, BatchSelectionStrategy, UnitType } from "@/lib/types";
 import { sortByFEFO, sortByFIFO, allocateQuantity } from "@/lib/batch-logic";
 import { format, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,8 @@ export interface SelectedBatchAllocation {
   expiryDate: string;
   mrp: number;
   qty: number;
+  unitType?: UnitType;
+  packSize?: number;
 }
 
 interface BatchSelectorProps {
@@ -78,10 +80,10 @@ export function BatchSelector({ tenant, strategy, onAdd }: BatchSelectorProps) {
           setError(`Only ${batch.availableQty} units available.`);
           return;
         }
-        onAdd([{ batchId: batch.id, batchNumber: batch.batchNumber, itemName: batch.itemName, expiryDate: batch.expiryDate, mrp: batch.mrp, qty: requestedQty }]);
+        onAdd([{ batchId: batch.id, batchNumber: batch.batchNumber, itemName: batch.itemName, expiryDate: batch.expiryDate, mrp: batch.mrp, qty: requestedQty, ...(batch.unitType && { unitType: batch.unitType }), ...(batch.packSize && { packSize: batch.packSize }) }]);
       } else {
         const allocations = allocateQuantity(sortedBatches, requestedQty);
-        onAdd(allocations.map((a) => ({ batchId: a.batchId, batchNumber: a.batchNumber, itemName: a.itemName, expiryDate: a.expiryDate, mrp: a.mrp, qty: a.allocatedQty })));
+        onAdd(allocations.map((a) => ({ batchId: a.batchId, batchNumber: a.batchNumber, itemName: a.itemName, expiryDate: a.expiryDate, mrp: a.mrp, qty: a.allocatedQty, ...(a.unitType && { unitType: a.unitType }), ...(a.packSize && { packSize: a.packSize }) })));
       }
       setSelectedItem(null);
       setItemSearch("");

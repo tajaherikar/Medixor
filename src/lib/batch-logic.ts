@@ -1,5 +1,5 @@
 import { addDays, isBefore, isAfter, parseISO } from "date-fns";
-import { Batch, BatchSelectionStrategy, InventoryStatus } from "@/lib/types";
+import { Batch, BatchSelectionStrategy, InventoryStatus, UnitType } from "@/lib/types";
 
 // ─── Inventory Status ─────────────────────────────────────────────────────────
 
@@ -55,6 +55,8 @@ export interface BatchAllocation {
   expiryDate: string;
   mrp: number;
   allocatedQty: number;
+  unitType?: UnitType;
+  packSize?: number;
 }
 
 /**
@@ -89,6 +91,8 @@ export function allocateQuantity(
       expiryDate: batch.expiryDate,
       mrp: batch.mrp,
       allocatedQty: allocate,
+      ...(batch.unitType && { unitType: batch.unitType }),
+      ...(batch.packSize && { packSize: batch.packSize }),
     });
     remaining -= allocate;
   }
