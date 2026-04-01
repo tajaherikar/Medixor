@@ -55,6 +55,12 @@ const typeLabelMap: Record<string, string> = {
   consultant: "Consultant",
 };
 
+const typePrefix: Record<string, string> = {
+  doctor: "DR",
+  lab: "Lab",
+  consultant: "Consultant",
+};
+
 const typeBadge: Record<string, string> = {
   doctor: "bg-blue-100 text-blue-700",
   lab: "bg-purple-100 text-purple-700",
@@ -88,7 +94,7 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
         name: data.name,
         type: data.type,
         phone: data.phone || undefined,
-        targetAmount: (data.amountPaid ?? 0) * ((data.targetMultiplier ?? 0) / 100),
+        targetAmount: (data.amountPaid ?? 0) * (data.targetMultiplier ?? 0),
       };
       return fetch(`/api/${tenant}/doctors`, {
         method: "POST",
@@ -109,7 +115,7 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
         name: data.name,
         type: data.type,
         phone: data.phone || null,
-        targetAmount: (data.amountPaid ?? 0) * ((data.targetMultiplier ?? 0) / 100),
+        targetAmount: (data.amountPaid ?? 0) * (data.targetMultiplier ?? 0),
       };
       return fetch(`/api/${tenant}/doctors/${editingDoctor!.id}`, {
         method: "PATCH",
@@ -146,7 +152,7 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
     formState: { errors },
   } = useForm<DoctorFormValues>({
     resolver: zodResolver(doctorSchema),
-    defaultValues: { type: "doctor", amountPaid: 0, targetMultiplier: 100 },
+    defaultValues: { type: "doctor", amountPaid: 5000, targetMultiplier: 1 },
   });
 
   return (
@@ -190,7 +196,6 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead className="text-right">Monthly Target</TableHead>
                 {isAdmin && <TableHead />}
@@ -204,17 +209,8 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
                       <div className="flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 shrink-0">
                         <Stethoscope className="h-3.5 w-3.5 text-primary" />
                       </div>
-                      {doc.name}
+                      <span>{typePrefix[doc.type] ?? doc.type} {doc.name}</span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${
-                        typeBadge[doc.type] ?? "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {typeLabelMap[doc.type] ?? doc.type}
-                    </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {doc.phone ?? "—"}
@@ -258,30 +254,28 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
             className="space-y-4"
           >
             <div className="space-y-1">
-              <Label>Name</Label>
-              <Input {...register("name")} placeholder="e.g. Dr. Rahul Sharma" />
+              <Label>Type & Name</Label>
+              <div className="flex gap-3">
+                <Select
+                  value={watch("type")}
+                  onValueChange={(v) =>
+                    setValue("type", v as "doctor" | "lab" | "consultant")
+                  }
+                >
+                  <SelectTrigger className="w-[110px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="doctor">Doctor</SelectItem>
+                    <SelectItem value="lab">Lab</SelectItem>
+                    <SelectItem value="consultant">Consultant</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input {...register("name")} placeholder="Rahul Sharma" className="flex-1" />
+              </div>
               {errors.name && (
                 <p className="text-xs text-destructive">{errors.name.message}</p>
               )}
-            </div>
-
-            <div className="space-y-1">
-              <Label>Type</Label>
-              <Select
-                value={watch("type")}
-                onValueChange={(v) =>
-                  setValue("type", v as "doctor" | "lab" | "consultant")
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="doctor">Doctor</SelectItem>
-                  <SelectItem value="lab">Medical Laboratory</SelectItem>
-                  <SelectItem value="consultant">Medical Consultant</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="space-y-1">
@@ -301,22 +295,24 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Target Multiplier (%)</Label>
+                  <Label>Target Multiplier (1-10)</Label>
                   <Input
                     type="number"
-                    min={0}
+                    min={1}
+                    max={10}
+                    step={1}
                     {...register("targetMultiplier", { valueAsNumber: true })}
-                    placeholder="e.g. 300"
+                    placeholder="e.g. 3"
                   />
                 </div>
               </div>
               {(() => {
                 const paid = watch("amountPaid") ?? 0;
-                const pct = watch("targetMultiplier") ?? 0;
-                const computed = paid * (pct / 100);
-                return paid > 0 && pct > 0 ? (
+                const mult = watch("targetMultiplier") ?? 0;
+                const computed = paid * mult;
+                return paid > 0 && mult > 0 ? (
                   <p className="text-xs text-muted-foreground bg-muted/60 rounded-md px-3 py-2">
-                    Monthly Target = {rupees(paid)} × {pct}% = <span className="font-semibold text-foreground">{rupees(computed)}</span>
+                    Monthly Target = {rupees(paid)} × {mult} = <span className="font-semibold text-foreground">{rupees(computed)}</span>
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
