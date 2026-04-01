@@ -90,7 +90,12 @@ export function LoginForm() {
       }
       const stored = JSON.parse(localStorage.getItem("medixor-auth") ?? "{}");
       const tenantId: string = stored?.state?.user?.tenantId ?? "demo";
-      router.replace(`/${tenantId}/dashboard`);
+      
+      // Clear React Query cache on successful login to avoid data leakage
+      import("@/components/providers").then(({ queryClient }) => {
+        queryClient.clear();
+        router.replace(`/${tenantId}/dashboard`);
+      });
     });
   }
 

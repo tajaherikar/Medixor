@@ -39,10 +39,13 @@ export const useAuthStore = create<AuthState>()(
         set({ user });
         return true;
       },
-      logout: () => {
+      logout: async () => {
         set({ user: null });
         // Clear persisted settings so the next login starts with a clean slate
         useSettingsStore.getState().resetSettings();
+        // Clear React Query cache to prevent data leakage between users
+        const { queryClient } = await import("@/components/providers");
+        queryClient.clear();
       },
     }),
     {
