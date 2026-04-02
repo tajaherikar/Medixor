@@ -56,7 +56,41 @@ Medixor/
 - Save data (triggers automatic sync queueing)
 - Returns: `{ data, isLoading, error, saveItem, saveItems, reload }`
 
-### 4. Sync Flow
+### 4. SQLite Operations (Phase 2)
+
+**Implemented functions**:
+- `get_table_data(table)` - Returns all records from table as JSON array
+  - Supports: customers, invoices, batches
+  - Auto-serializes to TypeScript-compatible JSON
+  
+- `save_data(table, data, operation)` - Save and queue for sync
+  - Operations: insert, update, delete
+  - Automatically creates sync_queue entry
+  - Version tracking for conflict resolution
+
+**Example - Save customer**:
+```rust
+save_data("customers", r#"{"id":"c1","name":"ABC Pharmacy","tenantId":"t1"}"#, "insert")?;
+// Returns: "Successfully saved to customers"
+// Queues automatic sync to Supabase
+```
+
+### 5. Sync Engine (Phase 2)
+
+**`process_sync()`** - Main sync orchestration:
+1. Parse incoming changes
+2. Check SQLite sync_queue for pending items
+3. (Future) Push to Supabase via REST API
+4. (Future) Pull updates from Supabase
+5. (Future) Handle conflicts with last-write-wins
+6. Return sync status
+
+Current implementation:
+- Queues changes locally
+- Marks sync_queue items as synced
+- Ready for Supabase integration
+
+### 6. Sync Flow
 
 **When OFFLINE:**
 ```
