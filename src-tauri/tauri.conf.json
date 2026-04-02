@@ -1,0 +1,32 @@
+{
+  "package": {
+    "productName": "Medixor",
+    "version": "1.0.0"
+  },
+  "tauri": {
+    "bundle": {
+      "active": true,
+      "targets": ["msi", "nsis"],
+      "identifier": "com.medixor.app"
+    },
+    "windows": [
+      {
+        "title": "Medixor",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devPath": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build",
+    "distDir": "../.next"
+  }
+}
+
