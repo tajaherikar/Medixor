@@ -88,6 +88,8 @@ export function Reports({ tenant }: ReportsProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
   const [expandedDoctor, setExpandedDoctor] = useState<string | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
+  const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
 
   // Date range — default to current month
   const [dateFrom, setDateFrom] = useState<string>(
@@ -205,6 +207,23 @@ export function Reports({ tenant }: ReportsProps) {
     );
   }, [expiryTableBatches, expirySearch]);
 
+  // Unique suppliers for filter
+  const uniqueSuppliers = useMemo(() => {
+    const suppliers = [...new Set(expiryTableBatches.map((b) => b.supplierName))].sort();
+    return suppliers;
+  }, [expiryTableBatches]);
+
+  // Grouped expiry by supplier
+  const groupedExpiry = useMemo(() => {
+    const filtered = selectedSupplier === "all" ? searchedExpiry : searchedExpiry.filter((b) => b.supplierName === selectedSupplier);
+    const groups: Record<string, typeof searchedExpiry> = {};
+    filtered.forEach((b) => {
+      if (!groups[b.supplierName]) groups[b.supplierName] = [];
+      groups[b.supplierName].push(b);
+    });
+    return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [searchedExpiry, selectedSupplier]);
+
   const isLoading = batchLoading || invoiceLoading || billsLoading || doctorLoading;
 
   function handleExportCsv() {
@@ -212,11 +231,19 @@ export function Reports({ tenant }: ReportsProps) {
     if (activeTab === "expiry") {
       const rows: (string | number)[][] = [
         ["Item", "Batch No", "Supplier", "Expiry Date", "Status", "Qty", "Value (MRP)"],
-        ...searchedExpiry.map((b) => [
-          b.itemName, b.batchNumber, b.supplierName, b.expiryDate,
-          b.status, b.availableQty, b.availableQty * b.mrp,
-        ]),
       ];
+      groupedExpiry.forEach(([supplier, batches]) => {
+        const expired = batches.filter((b) => b.status === "expired").length;
+        const nearExpiry = batches.filter((b) => b.status === "near_expiry").length;
+        const totalValue = batches.reduce((s, b) => s + b.availableQty * b.mrp, 0);
+        rows.push([`Supplier: ${supplier}`, `${batches.length} batches (${expired} expired, ${nearExpiry} near expiry)`, `Total Value: ₹${totalValue}`, "", "", "", ""]);
+        batches.forEach((b) => {
+          rows.push([
+            b.itemName, b.batchNumber, b.supplierName, b.expiryDate,
+            b.status, b.availableQty, b.availableQty * b.mrp,
+          ]);
+        });
+      });
       downloadCsv(rows, `expiry-report.csv`);
     } else if (activeTab === "invoices") {
       const rows: (string | number)[][] = [
@@ -447,85 +474,165 @@ export function Reports({ tenant }: ReportsProps) {
           {/* ── Expiry Report ─────────────────────────────────────────── */}
           {activeTab === "expiry" && (
             <div>
-              <div className="print:hidden flex items-center gap-2 mb-4">
+              <div className="print:hidden flex items-center gap-3 mb-4 flex-wrap">
+                {/* Supplier Filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Supplier:</label>
+                  <select
+                    value={selectedSupplier}
+                    onChange={(e) => {
+                      setSelectedSupplier(e.target.value);
+                      setExpandedSuppliers(e.target.value === "all" ? new Set(uniqueSuppliers) : new Set([e.target.value]));
+                    }}
+                    className="px-2.5 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="all">All Suppliers</option>
+                    {uniqueSuppliers.map((supplier) => (
+                      <option key={supplier} value={supplier}>
+                        {supplier}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Search */}
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Search item, batch, supplier…"
+                    placeholder="Search item, batch…"
                     value={expirySearch}
                     onChange={(e) => setExpirySearch(e.target.value)}
                     className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
-                {expirySearch && (
-                  <span className="text-xs text-muted-foreground">{searchedExpiry.length} result{searchedExpiry.length !== 1 ? "s" : ""}</span>
+
+                {/* Results count */}
+                {(expirySearch || selectedSupplier !== "all") && (
+                  <span className="text-xs text-muted-foreground">
+                    {groupedExpiry.reduce((s, [, batches]) => s + batches.length, 0)} batch{groupedExpiry.reduce((s, [, batches]) => s + batches.length, 0) !== 1 ? "es" : ""}
+                  </span>
                 )}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      {["Item", "Batch No", "Supplier", "Expiry", "Status", "Qty", "Value"].map((h, i) => (
-                        <th
-                          key={h}
-                          className={`text-xs font-semibold text-muted-foreground py-2.5 uppercase tracking-wide ${
-                            i >= 5 ? "text-right pr-0" : "text-left pr-4"
-                          } ${i === 6 ? "" : "pr-4"}`}
+
+              {/* Grouped by Supplier */}
+              <div className="space-y-3">
+                {groupedExpiry.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No batches found
+                  </div>
+                ) : (
+                  groupedExpiry.map(([supplier, batches]) => {
+                    const isExpanded = expandedSuppliers.has(supplier);
+                    const totalBatches = batches.length;
+                    const expired = batches.filter((b) => b.status === "expired");
+                    const nearExpiry = batches.filter((b) => b.status === "near_expiry");
+                    const totalValue = batches.reduce((s, b) => s + b.availableQty * b.mrp, 0);
+
+                    return (
+                      <div key={supplier} className="border border-border rounded-lg overflow-hidden">
+                        {/* Supplier Header */}
+                        <button
+                          onClick={() => {
+                            const newSet = new Set(expandedSuppliers);
+                            if (isExpanded) {
+                              newSet.delete(supplier);
+                            } else {
+                              newSet.add(supplier);
+                            }
+                            setExpandedSuppliers(newSet);
+                          }}
+                          className="w-full bg-muted/50 hover:bg-muted/70 transition-colors px-4 py-3 flex items-center justify-between"
                         >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {searchedExpiry.map((batch) => (
-                      <tr
-                        key={batch.id}
-                        className={`border-b border-border/50 transition-colors hover:bg-muted/40 ${
-                          batch.status === "expired"
-                            ? "bg-red-50/50 dark:bg-red-950/10"
-                            : batch.status === "near_expiry"
-                            ? "bg-amber-50/30 dark:bg-amber-950/10"
-                            : ""
-                        }`}
-                      >
-                        <td className="py-3 pr-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 shrink-0">
-                              <Package2 className="h-3.5 w-3.5 text-primary" />
+                          <div className="flex items-center gap-3">
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <div className="text-left">
+                              <div className="font-semibold text-foreground">{supplier}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {totalBatches} batch{totalBatches !== 1 ? "es" : ""} 
+                                {expired.length > 0 && <span className="ml-2 text-red-600 font-medium">• {expired.length} Expired</span>}
+                                {nearExpiry.length > 0 && <span className="ml-2 text-amber-600 font-medium">• {nearExpiry.length} Near Expiry</span>}
+                              </div>
                             </div>
-                            <span className="font-medium text-foreground">{batch.itemName}</span>
                           </div>
-                        </td>
-                        <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">
-                          {batch.batchNumber}
-                        </td>
-                        <td className="py-3 pr-4 text-muted-foreground text-xs">
-                          {batch.supplierName}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <ExpiryBadge expiryDate={batch.expiryDate} />
-                        </td>
-                        <td className="py-3 pr-4">
-                          <StatusBadge status={batch.status} />
-                        </td>
-                        <td className="py-3 pr-4 text-right font-medium">
-                          {batch.availableQty === 0 ? (
-                            <span className="text-muted-foreground italic text-xs">Nil</span>
-                          ) : (
-                            batch.availableQty
-                          )}
-                        </td>
-                        <td className="py-3 text-right font-medium text-foreground">
-                          {batch.availableQty > 0
-                            ? rupees(batch.availableQty * batch.mrp)
-                            : <span className="text-muted-foreground">—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div className="text-right">
+                            <div className="font-semibold text-foreground">{rupees(totalValue)}</div>
+                          </div>
+                        </button>
+
+                        {/* Batches Table (visible when expanded) */}
+                        {isExpanded && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-t border-border bg-background/50">
+                                  {["Item", "Batch No", "Expiry", "Status", "Qty", "Value"].map((h, i) => (
+                                    <th
+                                      key={h}
+                                      className={`text-xs font-semibold text-muted-foreground py-2.5 px-4 uppercase tracking-wide ${
+                                        i >= 4 ? "text-right" : "text-left"
+                                      }`}
+                                    >
+                                      {h}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {batches.map((batch) => (
+                                  <tr
+                                    key={batch.id}
+                                    className={`border-t border-border/50 transition-colors hover:bg-muted/30 ${
+                                      batch.status === "expired"
+                                        ? "bg-red-50/30 dark:bg-red-950/10"
+                                        : batch.status === "near_expiry"
+                                        ? "bg-amber-50/20 dark:bg-amber-950/10"
+                                        : ""
+                                    }`}
+                                  >
+                                    <td className="py-2.5 px-4">
+                                      <div className="flex items-center gap-2">
+                                        <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 shrink-0">
+                                          <Package2 className="h-3 w-3 text-primary" />
+                                        </div>
+                                        <span className="font-medium text-foreground text-xs">{batch.itemName}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-4 font-mono text-xs text-muted-foreground">
+                                      {batch.batchNumber}
+                                    </td>
+                                    <td className="py-2.5 px-4">
+                                      <ExpiryBadge expiryDate={batch.expiryDate} />
+                                    </td>
+                                    <td className="py-2.5 px-4">
+                                      <StatusBadge status={batch.status} />
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right font-medium text-sm">
+                                      {batch.availableQty === 0 ? (
+                                        <span className="text-muted-foreground italic text-xs">Nil</span>
+                                      ) : (
+                                        batch.availableQty
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right font-medium text-foreground text-sm">
+                                      {batch.availableQty > 0
+                                        ? rupees(batch.availableQty * batch.mrp)
+                                        : <span className="text-muted-foreground">—</span>}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
