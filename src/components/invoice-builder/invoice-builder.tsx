@@ -57,7 +57,9 @@ interface InvoiceBuilderProps {
 export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [customerId, setCustomerId] = useState<string>("");
   const [strategy, setStrategy] = useState<BatchSelectionStrategy>("fefo");
+  const [isQuickBill, setIsQuickBill] = useState(false);
   const { user } = useAuthStore();
+  const { settings } = useSettingsStore();
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -100,6 +102,11 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   });
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
+
+  // In Quick Bill mode, use customerId as customer name; default to "Walk-in Customer" if empty
+  const effectiveCustomerName = isQuickBill
+    ? (customerId.trim() || "Walk-in Customer")
+    : selectedCustomer?.name ?? "";
 
   // Pre-fill customer discount when customer is selected
   function handleCustomerChange(id: string) {
@@ -183,12 +190,16 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const grandTotal = grandTotalPreGst + totalGst;
 
   async function handleSave() {
-    if (!customerId || lineItems.length === 0) return;
+    // In Quick Bill mode, customer name defaults to "Walk-in Customer" if empty
+    // In Full Bill mode, customerId must be a valid customer ID
+    if (lineItems.length === 0) return;
+    if (!isQuickBill && !customerId) return;
+    
     setSaveError(null);
     const payload = {
       tenantId: tenant,
-      customerId,
-      customerName: selectedCustomer?.name ?? "",
+      customerId: isQuickBill ? "" : customerId,
+      customerName: effectiveCustomerName,
       ...(selectedCustomer?.gstNumber && { customerGstNumber: selectedCustomer.gstNumber }),
       ...(selectedCustomer?.licenseNumber && { customerLicenseNumber: selectedCustomer.licenseNumber }),
       ...(selectedCustomer?.address && { customerAddress: selectedCustomer.address }),
@@ -269,21 +280,59 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
   return (
     <div className="space-y-6">
+      {/* Quick Bill Toggle - visible only if setting enabled */}
+      {settings.enableQuickBilling && (
+        <Card>
+          <CardContent className="px-6 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">Invoice Mode</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isQuickBill ? "Quick Bill — minimal customer details" : "Full Bill — complete customer information"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isQuickBill}
+              onClick={() => setIsQuickBill(!isQuickBill)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                isQuickBill ? "bg-primary" : "bg-muted"
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform ${
+                  isQuickBill ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Customer + Strategy row */}
       <div className="grid sm:grid-cols-3 gap-4">
         <div className="space-y-1">
-          <Label>Customer</Label>
-          <Select value={customerId} onValueChange={handleCustomerChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select customer" />
-            </SelectTrigger>
-            <SelectContent>
-              {customers.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedCustomer && (selectedCustomer.gstNumber || selectedCustomer.licenseNumber || selectedCustomer.address) && (
+          <Label>Customer {isQuickBill ? "(Quick)" : "*"}</Label>
+          {isQuickBill ? (
+            <Input
+              placeholder="Enter customer name or reference"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              className="text-sm"
+            />
+          ) : (
+            <Select value={customerId} onValueChange={handleCustomerChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select customer" />
+              </SelectTrigger>
+              <SelectContent>
+                {customers.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {!isQuickBill && selectedCustomer && (selectedCustomer.gstNumber || selectedCustomer.licenseNumber || selectedCustomer.address) && (
             <div className="flex flex-wrap gap-3 mt-1">
               {selectedCustomer.gstNumber && (
                 <span className="text-xs text-muted-foreground">
@@ -303,7 +352,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
         </div>
 
         <div className="space-y-1">
-          <Label>Reference (Doctor / Lab / Consultant)</Label>
+          <Label>Reference (Doctor / Lab / Consultant) {isQuickBill && "(Optional)"}</Label>
           <Select
             value={referredById || "__none__"}
             onValueChange={(v) => {
@@ -312,19 +361,22 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
               const doc = doctors.find((d) => d.id === v);
               setReferredBy(doc?.name ?? "");
             }}
+            disabled={isQuickBill}
           >
             <SelectTrigger>
-              <SelectValue placeholder="No reference" />
+              <SelectValue placeholder={isQuickBill ? "(Optional)" : "No reference"} />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">No reference / Walk-in</SelectItem>
-              {doctors.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.name}{" "}
-                  <span className="text-muted-foreground text-xs capitalize">({d.type})</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
+            {!isQuickBill && (
+              <SelectContent>
+                <SelectItem value="__none__">No reference / Walk-in</SelectItem>
+                {doctors.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}{" "}
+                    <span className="text-muted-foreground text-xs capitalize">({d.type})</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            )}
           </Select>
         </div>
 
@@ -596,7 +648,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       <div className="flex flex-wrap items-center gap-3">
         <Button
           onClick={handleSave}
-          disabled={!customerId || lineItems.length === 0 || saved || !isAdmin}
+          disabled={(isQuickBill ? false : !customerId) || lineItems.length === 0 || saved || !isAdmin}
           className="w-full sm:w-auto"
           title={!isAdmin ? "Admin access required" : undefined}
         >

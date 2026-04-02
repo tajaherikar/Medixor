@@ -337,7 +337,26 @@ export function Settings({ tenant }: { tenant: string }) {
             />
           </button>
         </Field>
-      </Section>
+        <Field
+          label="Quick Billing Mode"
+          hint="Allow fast invoicing with minimal customer details. Users can toggle between Quick and Full bill."
+        >
+          <button
+            type="button"
+            role="switch"
+            aria-checked={draft.enableQuickBilling}
+            onClick={() => patch("enableQuickBilling", !draft.enableQuickBilling)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+              draft.enableQuickBilling ? "bg-primary" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform ${
+                draft.enableQuickBilling ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </Field>      </Section>
 
       {/* ── Inventory ─────────────────────────────────────────────── */}
       <Section

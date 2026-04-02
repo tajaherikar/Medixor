@@ -180,6 +180,9 @@ create table if not exists tenant_settings (
 alter table tenant_settings add column if not exists "lowStockThreshold" integer not null default 20;
 alter table tenant_settings add column if not exists "showReferenceField" boolean not null default false;
 
+-- Migration: add enableQuickBilling to existing tenant_settings rows (safe to re-run)
+alter table tenant_settings add column if not exists "enableQuickBilling" boolean not null default false;
+
 -- ─── Unit Type (pharmaceutical dosage form) ───────────────────────────────────
 alter table batches add column if not exists "unitType" text;
 alter table batches add column if not exists "packSize" integer;

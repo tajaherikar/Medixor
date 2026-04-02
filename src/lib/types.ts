@@ -292,6 +292,7 @@ export interface BusinessSettings {
   invoicePrefix: string;       // e.g. "INV-" → INV-2026-001
   invoiceFooter: string;       // text printed at bottom of invoice
   showReferenceField: boolean; // show/hide the Doctor/Lab/Consultant reference field in invoice builder
+  enableQuickBilling: boolean; // enable quick billing mode (minimal customer details required)
 
   // Inventory
   lowStockThreshold: number;   // batches with availableQty below this are flagged as low stock
@@ -307,6 +308,7 @@ export const defaultBusinessSettings: BusinessSettings = {
   invoicePrefix: "INV-",
   invoiceFooter: "Thank you for your business.",
   showReferenceField: false,
+  enableQuickBilling: false,
   lowStockThreshold: 20,
 };
 
