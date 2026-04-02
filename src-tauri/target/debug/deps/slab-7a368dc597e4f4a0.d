@@ -1,8 +1,0 @@
-/Users/a2251/Development/Medixor/src-tauri/target/debug/deps/slab-7a368dc597e4f4a0.d: /Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/lib.rs /Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/builder.rs
-
-/Users/a2251/Development/Medixor/src-tauri/target/debug/deps/libslab-7a368dc597e4f4a0.rlib: /Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/lib.rs /Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/builder.rs
-
-/Users/a2251/Development/Medixor/src-tauri/target/debug/deps/libslab-7a368dc597e4f4a0.rmeta: /Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/lib.rs /Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/builder.rs
-
-/Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/lib.rs:
-/Users/a2251/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slab-0.4.12/src/builder.rs:

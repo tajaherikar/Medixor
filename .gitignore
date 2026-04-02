@@ -40,3 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *.swp
+
+# Tauri
+src-tauri/target/
+src-tauri/icons/*.png
+medixor.db
+medixor.db-shm
+medixor.db-wal
