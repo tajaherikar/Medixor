@@ -1,5 +1,4 @@
 // Sync Engine - Bidirectional sync logic with Supabase integration
-use std::error::Error;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use rusqlite::Connection;
