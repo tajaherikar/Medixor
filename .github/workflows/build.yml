@@ -39,7 +39,7 @@ jobs:
         run: npm ci
       - name: Update bundle targets for Linux
         run: |
-          sed -i 's/"targets": \["dmg"\]/"targets": ["deb"]/' src-tauri/tauri.conf.json
+          node -e "const fs = require('fs'); const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8')); conf.tauri.bundle.targets = ['deb']; fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2));"
       - name: Build frontend
         run: npm run build
       - name: Build Tauri app
@@ -90,7 +90,7 @@ jobs:
         run: npm ci
       - name: Update bundle targets for Windows
         run: |
-          powershell -Command (Get-Content src-tauri/tauri.conf.json) -replace '"targets": \["dmg"\]', '"targets": ["msi", "nsis"]' | Set-Content src-tauri/tauri.conf.json
+          node -e "const fs = require('fs'); const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8')); conf.tauri.bundle.targets = ['msi', 'nsis']; fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2));"
       - name: Build frontend
         run: npm run build
       - name: Build Tauri app
