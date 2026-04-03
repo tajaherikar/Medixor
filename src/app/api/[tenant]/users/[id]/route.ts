@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db";
 import bcrypt from "bcryptjs";
 
+export const dynamic = 'force-dynamic';
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ tenant: string; id: string }> }

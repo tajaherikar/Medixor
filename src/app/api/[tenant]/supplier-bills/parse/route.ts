@@ -3,6 +3,8 @@ import { PDFParse } from "pdf-parse";
 import { createWorker } from "tesseract.js";
 import { SupplierBillItem, GstRate } from "@/lib/types";
 
+export const dynamic = 'force-dynamic';
+
 function normalizeHeader(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }

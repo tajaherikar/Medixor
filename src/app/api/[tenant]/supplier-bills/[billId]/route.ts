@@ -3,6 +3,8 @@ import * as db from "@/lib/db";
 import { SupplierBill, Batch } from "@/lib/types";
 import { getInventoryStatus } from "@/lib/batch-logic";
 
+export const dynamic = 'force-dynamic';
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ tenant: string; billId: string }> }

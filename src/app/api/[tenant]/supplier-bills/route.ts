@@ -3,6 +3,8 @@ import * as db from "@/lib/db";
 import { Batch } from "@/lib/types";
 import { getInventoryStatus } from "@/lib/batch-logic";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ tenant: string }> }
