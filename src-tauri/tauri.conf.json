@@ -6,11 +6,7 @@
   "tauri": {
     "bundle": {
       "active": true,
-      "targets": {
-        "macos": ["dmg"],
-        "windows": ["msi", "nsis"],
-        "linux": ["deb"]
-      },
+      "targets": ["dmg"],
       "identifier": "com.medixor.app",
       "windows": {
         "certificateThumbprint": null,
