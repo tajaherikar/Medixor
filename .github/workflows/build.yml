@@ -9,57 +9,104 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            platform: windows
-          - os: macos-latest
-            platform: macos
-          - os: ubuntu-latest
-            platform: linux
-
-    runs-on: ${{ matrix.os }}
-
+  build-linux:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'linux'
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev libssl-dev curl wget file libxdo-dev libxcb-render0-dev
-
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libappindicator3-dev \
+            libssl-dev \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libxcb-render0-dev \
+            libsoup-3.0-dev \
+            xdg-utils
       - name: Install npm dependencies
         run: npm ci
-
       - name: Build frontend
         run: npm run build
-
       - name: Build Tauri app
         run: npm run tauri:build
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-app-${{ matrix.platform }}
+          name: tauri-app-linux
           path: src-tauri/target/release/bundle/
           retention-days: 30
 
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install npm dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Build Tauri app
+        run: npm run tauri:build
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-app-macos
+          path: src-tauri/target/release/bundle/
+          retention-days: 30
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install npm dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Build Tauri app
+        run: npm run tauri:build
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-app-windows
+          path: src-tauri/target/release/bundle/
+          retention-days: 30
+
+  create-release:
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: src-tauri/target/release/bundle/**/*
+          files: tauri-app-*/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
