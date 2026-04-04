@@ -47,3 +47,8 @@ src-tauri/icons/*.png
 medixor.db
 medixor.db-shm
 medixor.db-wal
+
+# Electron Desktop App
+medixor-app/
+dist-electron/
+*.zip

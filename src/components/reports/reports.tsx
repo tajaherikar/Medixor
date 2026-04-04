@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
 import { InvoicePrintModal } from "./invoice-print-modal";
 import { BillPrintModal } from "./bill-print-modal";
+import { fetchInventory, fetchInvoices, fetchSupplierBills, fetchDoctors } from "@/lib/api-client";
 import {
   BarChart,
   Bar,
@@ -110,21 +111,21 @@ export function Reports({ tenant }: ReportsProps) {
 
   const { data: batches = [], isLoading: batchLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all"],
-    queryFn: () => fetch(`/api/${tenant}/inventory`).then((r) => r.json()),
+    queryFn: () => fetchInventory(tenant),
   });
 
   const { data: invoices = [], isLoading: invoiceLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices", tenant],
-    queryFn: () => fetch(`/api/${tenant}/invoices`).then((r) => r.json()),
+    queryFn: () => fetchInvoices(tenant),
   });
 
   const { data: supplierBills = [], isLoading: billsLoading } = useQuery<SupplierBill[]>({
     queryKey: ["supplier-bills", tenant],
-    queryFn: () => fetch(`/api/${tenant}/supplier-bills`).then((r) => r.json()),
+    queryFn: () => fetchSupplierBills(tenant),
   });
   const { data: doctors = [], isLoading: doctorLoading } = useQuery<Doctor[]>({
     queryKey: ["doctors", tenant],
-    queryFn: () => fetch(`/api/${tenant}/doctors`).then((r) => r.json()),
+    queryFn: () => fetchDoctors(tenant),
   });
   // ─── Date-filtered data ───────────────────────────────────────────────────
   const filteredInvoices = useMemo(() => {

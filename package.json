@@ -1,6 +1,8 @@
 {
   "name": "medixor",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Medical Inventory Management System - Offline First",
+  "main": "electron/main-simple-offline.js",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,7 +14,9 @@
     "clean-build": "npm run clean && npm run build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "npm run build && node scripts/build-electron.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -24,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "express": "^5.2.1",
     "lucide-react": "^1.7.0",
     "msw": "^2.12.14",
     "next": "16.2.1",
@@ -49,11 +54,31 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.0.4"
+  },
+  "build": {
+    "appId": "com.medixor.app",
+    "productName": "Medixor",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "electron/app-icon.ico"
+    }
   },
   "msw": {
     "workerDirectory": [
