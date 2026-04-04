@@ -99,3 +99,54 @@ export function allocateQuantity(
 
   return allocations;
 }
+
+// ─── Scheme / Free Samples Utilities ──────────────────────────────────────────
+
+/**
+ * Calculate actual inventory quantity including scheme/free samples
+ * @param paidQty - Quantity paid for (billed quantity)
+ * @param schemeQty - Free samples received
+ * @returns Total inventory quantity (paid + scheme)
+ */
+export function calculateTotalInventoryQty(
+  paidQty: number,
+  schemeQty?: number
+): number {
+  return paidQty + (schemeQty || 0);
+}
+
+/**
+ * Parse scheme pattern to extract paid qty and scheme qty
+ * Examples: "10+1" → {paid: 10, scheme: 1}, "20+2" → {paid: 20, scheme: 2}
+ * @param pattern - Pattern string like "10+1" or "10+5"
+ * @returns Object with paid and scheme quantities
+ */
+export function parseSchemePattern(
+  pattern: string
+): { paid: number; scheme: number } | null {
+  const match = pattern.match(/^(\d+)\+(\d+)$/);
+  if (!match) return null;
+  return {
+    paid: parseInt(match[1], 10),
+    scheme: parseInt(match[2], 10),
+  };
+}
+
+/**
+ * Calculate profit margin benefit from scheme
+ * @param schemeQty - Free items given
+ * @param mrp - Selling price per unit
+ * @param purchasePrice - Cost per unit
+ * @returns Object with scheme benefit (as revenue and margin)
+ */
+export function calculateSchemeBenefit(
+  schemeQty: number,
+  mrp: number,
+  purchasePrice: number
+): { schemeRevenue: number; schemeMarginPerUnit: number; totalSchemeMargin: number } {
+  return {
+    schemeRevenue: schemeQty * mrp,
+    schemeMarginPerUnit: mrp - purchasePrice,
+    totalSchemeMargin: schemeQty * (mrp - purchasePrice),
+  };
+}
