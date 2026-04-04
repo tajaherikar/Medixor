@@ -110,24 +110,51 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
       header: "Qty",
       cell: ({ row }) => {
         const qty = row.original.availableQty;
+        const scheme = row.original.schemeQuantity;
         return (
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-sm font-bold tabular-nums ${
-                qty === 0
-                  ? "text-muted-foreground"
-                  : qty < lowStockThreshold
-                  ? "text-orange-600"
-                  : "text-foreground"
-              }`}
-            >
-              {qty}
-            </span>
-            {qty < lowStockThreshold && qty > 0 && (
-              <span className="text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-sm border border-orange-200">
-                Low
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-sm font-bold tabular-nums ${
+                  qty === 0
+                    ? "text-muted-foreground"
+                    : qty < lowStockThreshold
+                    ? "text-orange-600"
+                    : "text-foreground"
+                }`}
+              >
+                {qty}
+              </span>
+              {qty < lowStockThreshold && qty > 0 && (
+                <span className="text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-sm border border-orange-200">
+                  Low
+                </span>
+              )}
+            </div>
+            {scheme && scheme > 0 && (
+              <span className="text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded-sm border border-green-200">
+                +{scheme}  free
               </span>
             )}
+          </div>
+        );
+      },
+    },
+    {
+      id: "scheme",
+      header: "Scheme",
+      meta: { className: "hidden lg:table-cell" },
+      cell: ({ row }) => {
+        const { schemeQuantity, schemePattern } = row.original;
+        if (!schemeQuantity || schemeQuantity === 0) {
+          return <span className="text-muted-foreground text-xs">—</span>;
+        }
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 w-fit">
+              {schemePattern || `+ ${schemeQuantity}`}
+            </span>
+            <span className="text-xs text-gray-500">{row.original.originalQty} paid + {schemeQuantity} free</span>
           </div>
         );
       },
