@@ -302,7 +302,7 @@ export const handlers = [
   http.put(`${BASE}/:tenant/settings`, async ({ request, params }) => {
     const tenant = params.tenant as string;
     const body = await request.json() as BusinessSettings;
-    await db.upsertSettings(tenant, body);
+    await db.saveSettings(tenant, body);
     return HttpResponse.json({ success: true });
   }),
 ];

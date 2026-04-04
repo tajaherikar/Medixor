@@ -3,7 +3,7 @@
  * This mirrors the API route responses but works offline using localStorage
  */
 
-import * as localDb from "@/lib/local-db";
+import { localDb } from "@/lib/local-db";
 import type {
   Batch,
   Customer,
@@ -80,49 +80,49 @@ async function apiWrite<T>(
 export async function fetchInventory(tenant: string): Promise<Batch[]> {
   return apiCall(
     `/api/${tenant}/inventory`,
-    () => localDb.getBatches(tenant)
+    () => localDb.getBatches()
   );
 }
 
 export async function fetchInvoices(tenant: string): Promise<Invoice[]> {
   return apiCall(
     `/api/${tenant}/invoices`,
-    () => localDb.getInvoices(tenant)
+    () => localDb.getInvoices()
   );
 }
 
 export async function fetchSupplierBills(tenant: string): Promise<SupplierBill[]> {
   return apiCall(
     `/api/${tenant}/supplier-bills`,
-    () => localDb.getSupplierBills(tenant)
+    () => localDb.getSupplierBills()
   );
 }
 
 export async function fetchDoctors(tenant: string): Promise<Doctor[]> {
   return apiCall(
     `/api/${tenant}/doctors`,
-    () => localDb.getDoctors(tenant)
+    () => localDb.getDoctors()
   );
 }
 
 export async function fetchCustomers(tenant: string): Promise<Customer[]> {
   return apiCall(
     `/api/${tenant}/customers`,
-    () => localDb.getCustomers(tenant)
+    () => localDb.getCustomers()
   );
 }
 
 export async function fetchSuppliers(tenant: string): Promise<Supplier[]> {
   return apiCall(
     `/api/${tenant}/suppliers`,
-    () => localDb.getSuppliers(tenant)
+    () => localDb.getSuppliers()
   );
 }
 
 export async function fetchPayments(tenant: string): Promise<Payment[]> {
   return apiCall(
     `/api/${tenant}/payments`,
-    () => localDb.getPayments(tenant)
+    () => localDb.getPayments()
   );
 }
 

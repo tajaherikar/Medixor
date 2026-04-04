@@ -19,6 +19,6 @@ export async function PUT(
 ) {
   const { tenant } = await params;
   const body = await req.json() as BusinessSettings;
-  await db.upsertSettings(tenant, body);
+  await db.saveSettings(tenant, body);
   return NextResponse.json({ success: true });
 }

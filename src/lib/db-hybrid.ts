@@ -4,7 +4,7 @@
  * syncs to Supabase when online.
  */
 
-import * as localDb from "@/lib/local-db";
+import { localDb } from "@/lib/local-db";
 import * as cloudDb from "@/lib/db-cloud";
 import type {
   Batch,
@@ -46,12 +46,12 @@ function useLocal(): boolean {
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 
 export async function getSuppliers(tenantId: string): Promise<Supplier[]> {
-  if (useLocal()) return localDb.getSuppliers(tenantId);
+  if (useLocal()) return localDb.getSuppliers();
   try {
     return await cloudDb.getSuppliers(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getSuppliers(tenantId);
+    return localDb.getSuppliers();
   }
 }
 
@@ -81,12 +81,12 @@ export async function updateSupplier(id: string, updates: Partial<Supplier>): Pr
 // ─── Batches ──────────────────────────────────────────────────────────────────
 
 export async function getBatches(tenantId: string): Promise<Batch[]> {
-  if (useLocal()) return localDb.getBatches(tenantId);
+  if (useLocal()) return localDb.getBatches();
   try {
     return await cloudDb.getBatches(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getBatches(tenantId);
+    return localDb.getBatches();
   }
 }
 
@@ -115,12 +115,12 @@ export async function updateBatch(id: string, updates: Partial<Batch>): Promise<
 // ─── Customers ────────────────────────────────────────────────────────────────
 
 export async function getCustomers(tenantId: string): Promise<Customer[]> {
-  if (useLocal()) return localDb.getCustomers(tenantId);
+  if (useLocal()) return localDb.getCustomers();
   try {
     return await cloudDb.getCustomers(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getCustomers(tenantId);
+    return localDb.getCustomers();
   }
 }
 
@@ -149,12 +149,12 @@ export async function updateCustomer(id: string, updates: Partial<Customer>): Pr
 // ─── Invoices ─────────────────────────────────────────────────────────────────
 
 export async function getInvoices(tenantId: string): Promise<Invoice[]> {
-  if (useLocal()) return localDb.getInvoices(tenantId);
+  if (useLocal()) return localDb.getInvoices();
   try {
     return await cloudDb.getInvoices(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getInvoices(tenantId);
+    return localDb.getInvoices();
   }
 }
 
@@ -183,12 +183,12 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
 // ─── Supplier Bills ───────────────────────────────────────────────────────────
 
 export async function getSupplierBills(tenantId: string): Promise<SupplierBill[]> {
-  if (useLocal()) return localDb.getSupplierBills(tenantId);
+  if (useLocal()) return localDb.getSupplierBills();
   try {
     return await cloudDb.getSupplierBills(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getSupplierBills(tenantId);
+    return localDb.getSupplierBills();
   }
 }
 
@@ -217,12 +217,12 @@ export async function updateSupplierBill(id: string, updates: Partial<SupplierBi
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 export async function getPayments(tenantId: string): Promise<Payment[]> {
-  if (useLocal()) return localDb.getPayments(tenantId);
+  if (useLocal()) return localDb.getPayments();
   try {
     return await cloudDb.getPayments(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getPayments(tenantId);
+    return localDb.getPayments();
   }
 }
 
@@ -281,15 +281,26 @@ export async function updateUser(id: string, updates: Partial<AppUser>): Promise
   }
 }
 
+export async function deleteUser(id: string): Promise<void> {
+  if (useLocal()) return localDb.deleteUser(id);
+  try {
+    await cloudDb.deleteUser(id);
+    localDb.deleteUser(id);
+  } catch (error) {
+    console.warn('Cloud DB failed, deleting locally:', error);
+    localDb.deleteUser(id);
+  }
+}
+
 // ─── Doctors ──────────────────────────────────────────────────────────────────
 
 export async function getDoctors(tenantId: string): Promise<Doctor[]> {
-  if (useLocal()) return localDb.getDoctors(tenantId);
+  if (useLocal()) return localDb.getDoctors();
   try {
     return await cloudDb.getDoctors(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getDoctors(tenantId);
+    return localDb.getDoctors();
   }
 }
 
@@ -330,7 +341,7 @@ export async function getSettings(tenantId: string): Promise<BusinessSettings> {
 export async function saveSettings(tenantId: string, settings: BusinessSettings): Promise<void> {
   if (useLocal()) return localDb.saveSettings(tenantId, settings);
   try {
-    await cloudDb.saveSettings(tenantId, settings);
+    await cloudDb.upsertSettings(tenantId, settings);
     localDb.saveSettings(tenantId, settings);
   } catch (error) {
     console.warn('Cloud DB failed, saving locally:', error);

@@ -20,6 +20,10 @@ import {
   Invoice,
   SupplierBill,
   Payment,
+  Doctor,
+  AppUser,
+  BusinessSettings,
+  defaultBusinessSettings,
 } from "@/lib/types";
 import {
   mockBatches,
@@ -41,6 +45,9 @@ const KEYS = {
   invoices:      "medixor-db-invoices",
   supplierBills: "medixor-db-supplier-bills",
   payments:      "medixor-db-payments",
+  doctors:       "medixor-db-doctors",
+  users:         "medixor-db-users",
+  settings:      "medixor-db-settings",
 } as const;
 
 // ─── Core helpers ─────────────────────────────────────────────────────────────
@@ -72,6 +79,9 @@ function seed(): void {
   write(KEYS.invoices,      mockInvoices);
   write(KEYS.supplierBills, mockSupplierBills);
   write(KEYS.payments,      mockPayments);
+  write(KEYS.doctors,       []);
+  write(KEYS.users,         []);
+  write(KEYS.settings,      [{ tenantId: 'default', ...defaultBusinessSettings }]);
 
   localStorage.setItem(KEYS.seeded, "1");
 }
@@ -87,6 +97,12 @@ export const localDb = {
   addSupplier: (s: Supplier): void => {
     const list = localDb.getSuppliers();
     list.push(s);
+    write(KEYS.suppliers, list);
+  },
+  updateSupplier: (id: string, updates: Partial<Supplier>): void => {
+    const list = read<Supplier>(KEYS.suppliers).map((s) =>
+      s.id === id ? { ...s, ...updates } : s
+    );
     write(KEYS.suppliers, list);
   },
 
@@ -118,6 +134,12 @@ export const localDb = {
   addCustomer: (c: Customer): void => {
     const list = localDb.getCustomers();
     list.push(c);
+    write(KEYS.customers, list);
+  },
+  updateCustomer: (id: string, updates: Partial<Customer>): void => {
+    const list = read<Customer>(KEYS.customers).map((c) =>
+      c.id === id ? { ...c, ...updates } : c
+    );
     write(KEYS.customers, list);
   },
 
@@ -164,6 +186,72 @@ export const localDb = {
     const list = localDb.getPayments();
     list.push(p);
     write(KEYS.payments, list);
+  },
+
+  // ── Doctors ────────────────────────────────────────────────────────────────
+  getDoctors: (): Doctor[] => {
+    seed();
+    return read<Doctor>(KEYS.doctors);
+  },
+  addDoctor: (d: Doctor): void => {
+    const list = localDb.getDoctors();
+    list.push(d);
+    write(KEYS.doctors, list);
+  },
+  updateDoctor: (id: string, updates: Partial<Doctor>): void => {
+    const list = read<Doctor>(KEYS.doctors).map((d) =>
+      d.id === id ? { ...d, ...updates } : d
+    );
+    write(KEYS.doctors, list);
+  },
+
+  // ── Users ──────────────────────────────────────────────────────────────────
+  getUsers: (tenantId?: string): AppUser[] => {
+    seed();
+    const list = read<AppUser>(KEYS.users);
+    if (tenantId) return list.filter((u) => u.tenantId === tenantId);
+    return list;
+  },
+  getUserByEmailAnyTenant: (email: string): AppUser | null => {
+    seed();
+    const list = read<AppUser>(KEYS.users);
+    return list.find((u) => u.email === email) || null;
+  },
+  addUser: (u: AppUser): void => {
+    const list = read<AppUser>(KEYS.users);
+    const exists = list.some((existing) => existing.id === u.id);
+    if (!exists) {
+      list.push(u);
+      write(KEYS.users, list);
+    }
+  },
+  updateUser: (id: string, updates: Partial<Omit<AppUser, "id">>): void => {
+    const list = read<AppUser>(KEYS.users).map((u) =>
+      u.id === id ? { ...u, ...updates } : u
+    );
+    write(KEYS.users, list);
+  },
+  deleteUser: (id: string): void => {
+    const list = read<AppUser>(KEYS.users).filter((u) => u.id !== id);
+    write(KEYS.users, list);
+  },
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+  getSettings: (tenantId: string): BusinessSettings => {
+    seed();
+    const list = read<{ tenantId: string; } & BusinessSettings>(KEYS.settings);
+    const found = list.find((s) => s.tenantId === tenantId);
+    return found ? { ...found } : defaultBusinessSettings;
+  },
+  saveSettings: (tenantId: string, settings: BusinessSettings): void => {
+    const list = read<{ tenantId: string; } & BusinessSettings>(KEYS.settings);
+    const index = list.findIndex((s) => s.tenantId === tenantId);
+    if (index >= 0) {
+      list[index] = { tenantId, ...settings };
+    } else {
+      list.push({ tenantId, ...settings });
+    }
+    write(KEYS.settings, list);
   },
 
   // ── Reset (dev utility) ────────────────────────────────────────────────────
