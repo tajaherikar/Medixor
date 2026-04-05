@@ -128,6 +128,10 @@ export interface Batch {
   unitType?: UnitType;  // dosage form (Tab, Cap, Syp, Inj, Cream...)
   packSize?: number;    // units per strip/bottle (e.g. 10 for Tab 10, 60 for 60ml)
   createdAt: string; // ISO date string — used for FIFO ordering
+  // ─── Scheme / Free Samples ─────────────────────────────────────────────────
+  schemeQuantity?: number; // Free samples received (e.g., 1 in "10+1")
+  schemePattern?: string; // Pattern: "10+1", "10+5" etc.
+  // Note: originalQty = paid quantity; availableQty = paid + scheme (total inventory)
 }
 
 // ─── Supplier Bill (Stock Inward / GRN) ──────────────────────────────────────
@@ -148,6 +152,10 @@ export interface SupplierBillItem {
   lineTotal: number; // after GST
   unitType?: UnitType;
   packSize?: number;
+  // ─── Scheme / Free Samples ─────────────────────────────────────────────────
+  schemeQuantity?: number; // Number of free items (e.g., 1 in "10+1" scheme)
+  schemePattern?: string; // Pattern for reference: "10+1", "10+5", "20+2" etc.
+  // Note: Cost calculations are based on quantity only, not schemeQuantity
 }
 
 export interface SupplierBill {
@@ -228,6 +236,10 @@ export interface InvoiceLineItem {
   sgst: number;
   gstAmount: number;
   lineTotalWithGst: number;
+  // ─── Scheme / Free Samples ─────────────────────────────────────────────────
+  schemeQuantity?: number; // Number of free items offered to customer (e.g., 1 in "10+1")
+  schemePattern?: string; // Pattern for reference: "10+1", "10+5", "20+2" etc.
+  // Note: Billing is based on quantity only, schemeQuantity is informational for customer
 }
 
 export interface Invoice {

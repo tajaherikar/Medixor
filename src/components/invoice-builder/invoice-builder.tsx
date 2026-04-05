@@ -48,6 +48,8 @@ interface LineItem {
   discountValue: number;
   gstInclusive?: boolean;
   gstRate: GstRate;
+  schemeQuantity?: number;
+  schemePattern?: string;
 }
 
 interface InvoiceBuilderProps {
@@ -537,6 +539,44 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
             </Table>
 
             <Separator className="my-4" />
+
+            {/* Scheme Details - Optional Free Samples to Customer */}
+            {lineItems.length > 0 && (
+              <div className="space-y-4 mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="font-semibold text-sm text-green-900">Scheme / Free Samples (Optional)</div>
+                <div className="space-y-3">
+                  {lineItems.map((l) => (
+                    <div key={l.batchId} className="flex items-end gap-4">
+                      <div className="flex-1">
+                        <label className="text-xs font-medium text-gray-700">{l.itemName}</label>
+                      </div>
+                      <div className="w-32">
+                        <input
+                          type="number"
+                          min={0}
+                          placeholder="Free qty"
+                          value={l.schemeQuantity ?? ''}
+                          onChange={(e) => updateLineItem(l.batchId, "schemeQuantity", e.target.value ? Number(e.target.value) : 0)}
+                          className="w-full px-2 py-1 text-xs border rounded"
+                        />
+                      </div>
+                      <div className="w-32">
+                        <input
+                          type="text"
+                          placeholder="e.g., 10+1"
+                          value={l.schemePattern ?? ''}
+                          onChange={(e) => updateLineItem(l.batchId, "schemePattern", e.target.value)}
+                          className="w-full px-2 py-1 text-xs border rounded"
+                        />
+                      </div>
+                      <div className="w-40 text-xs text-gray-600">
+                        {l.quantity} (billed) + {l.schemeQuantity ?? 0} (free) = {l.quantity + (l.schemeQuantity ?? 0)} total
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Totals */}
             <div className="flex flex-col items-end gap-2 text-sm">

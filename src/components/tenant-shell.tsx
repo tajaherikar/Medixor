@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { TopHeader } from "@/components/top-header";
 import { useAuthStore, useSettingsStore } from "@/lib/stores";
+import { setupAutoPreload } from "@/lib/preload";
 
 interface TenantShellProps {
   tenant: string;
@@ -32,6 +33,16 @@ export function TenantShell({ tenant, children }: TenantShellProps) {
       .then((data) => { if (data) updateSettings(data); })
       .catch(() => {});
   }, [tenant, _hasHydrated, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-preload all data for offline use
+  useEffect(() => {
+    if (!_hasHydrated || !user) return;
+    
+    console.log('🚀 Setting up auto-preload for tenant:', tenant);
+    const cleanup = setupAutoPreload(tenant);
+    
+    return cleanup;
+  }, [tenant, _hasHydrated, user]);
 
   if (!_hasHydrated) return null;
   if (!user) return null;

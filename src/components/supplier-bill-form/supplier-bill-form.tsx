@@ -45,6 +45,8 @@ const itemSchema = z.object({
   gstInclusive:  z.boolean().optional(),
   unitType:      z.string().optional(),
   packSize:      z.number().int().positive().optional(),
+  schemeQuantity: z.number().int().nonnegative("Scheme quantity must be >= 0").optional(),
+  schemePattern: z.string().optional(),
 });
 
 const billSchema = z.object({
@@ -68,6 +70,8 @@ const emptyItem = {
   gstInclusive: false,
   unitType: "",
   packSize: undefined as number | undefined,
+  schemeQuantity: 0,
+  schemePattern: "" as string,
 };
 
 function rupees(n: number) {
@@ -122,6 +126,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
         gstInclusive: item.gstInclusive,
         unitType: item.unitType,
         packSize: item.packSize,
+        schemeQuantity: item.schemeQuantity ?? 0,
+        schemePattern: item.schemePattern ?? "",
       })),
     } : {
       supplierId: "",
@@ -481,6 +487,24 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                     <Label>Quantity</Label>
                     <Input type="number" placeholder="100" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />
                     {errors.items?.[index]?.quantity && <p className="text-xs text-destructive">{errors.items[index]!.quantity!.message}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Scheme Qty <span className="text-muted-foreground">(free items)</span></Label>
+                    <Input type="number" min={0} placeholder="1" {...register(`items.${index}.schemeQuantity`, { valueAsNumber: true })} />
+                    <p className="text-xs text-muted-foreground">Free items in scheme (e.g., 1 in 10+1)</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Scheme Pattern <span className="text-muted-foreground">(optional)</span></Label>
+                    <Input type="text" placeholder="10+1, 10+5" {...register(`items.${index}.schemePattern`)} />
+                    <p className="text-xs text-muted-foreground">Pattern for reference only</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Total Received</Label>
+                    <div className="flex items-center gap-2 h-10 bg-gray-50 px-3 rounded border border-input">
+                      <span className="text-sm">
+                        {(watchedItems?.[index]?.quantity ?? 0)} + {(watchedItems?.[index]?.schemeQuantity ?? 0)} = <strong>{(watchedItems?.[index]?.quantity ?? 0) + (watchedItems?.[index]?.schemeQuantity ?? 0)}</strong> units
+                      </span>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label>GST Rate (%)</Label>
