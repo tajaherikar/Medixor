@@ -6,6 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Doctor } from "@/lib/types";
+import { calculateDoctorTarget } from "@/lib/doctor-target";
+import { DoctorTargetCard } from "@/components/ui/doctor-target-card";
 import {
   Table,
   TableBody,
@@ -39,8 +41,8 @@ const doctorSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["doctor", "lab", "consultant"]),
   phone: z.string().optional(),
-  amountPaid: z.number().min(0).optional(),
-  targetMultiplier: z.number().min(0).optional(),
+  allocatedAmount: z.number().min(0, "Allocated amount must be 0 or more"),
+  targetPercentage: z.number().min(0, "Target percentage must be 0 or more").max(500, "Target percentage cannot exceed 500%"),
 });
 
 type DoctorFormValues = z.infer<typeof doctorSchema>;
@@ -89,12 +91,15 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
 
   const addMutation = useMutation({
     mutationFn: (data: DoctorFormValues) => {
+      const targetAmount = calculateDoctorTarget(data.allocatedAmount, data.targetPercentage);
       const payload = {
         tenantId: tenant,
         name: data.name,
         type: data.type,
         phone: data.phone || undefined,
-        targetAmount: (data.amountPaid ?? 0) * (data.targetMultiplier ?? 0),
+        allocatedAmount: data.allocatedAmount,
+        targetPercentage: data.targetPercentage,
+        targetAmount,
       };
       return fetch(`/api/${tenant}/doctors`, {
         method: "POST",
@@ -111,11 +116,14 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
 
   const editMutation = useMutation({
     mutationFn: (data: DoctorFormValues) => {
+      const targetAmount = calculateDoctorTarget(data.allocatedAmount, data.targetPercentage);
       const payload = {
         name: data.name,
         type: data.type,
         phone: data.phone || null,
-        targetAmount: (data.amountPaid ?? 0) * (data.targetMultiplier ?? 0),
+        allocatedAmount: data.allocatedAmount,
+        targetPercentage: data.targetPercentage,
+        targetAmount,
       };
       return fetch(`/api/${tenant}/doctors/${editingDoctor!.id}`, {
         method: "PATCH",
@@ -137,8 +145,8 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
       name: d.name,
       type: d.type,
       phone: d.phone ?? "",
-      amountPaid: 0,
-      targetMultiplier: 0,
+      allocatedAmount: d.allocatedAmount,
+      targetPercentage: d.targetPercentage,
     });
     setDialogOpen(true);
   }
@@ -152,7 +160,7 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
     formState: { errors },
   } = useForm<DoctorFormValues>({
     resolver: zodResolver(doctorSchema),
-    defaultValues: { type: "doctor", amountPaid: 5000, targetMultiplier: 1 },
+    defaultValues: { type: "doctor", allocatedAmount: 30000, targetPercentage: 30 },
   });
 
   return (
@@ -283,42 +291,54 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
               <Input {...register("phone")} placeholder="+91 98765 43210" />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 pt-2 border-t border-border">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Reference Fee (₹)</Label>
+                  <Label htmlFor="allocated">Amount You Pay (₹)</Label>
                   <Input
+                    id="allocated"
                     type="number"
                     min={0}
-                    {...register("amountPaid", { valueAsNumber: true })}
-                    placeholder="e.g. 10000"
+                    step={1000}
+                    {...register("allocatedAmount", { valueAsNumber: true })}
+                    placeholder="e.g. 30000"
                   />
+                  <p className="text-xs text-muted-foreground">Initial amount allocated to doctor</p>
+                  {errors.allocatedAmount && (
+                    <p className="text-xs text-destructive">{errors.allocatedAmount.message}</p>
+                  )}
                 </div>
                 <div className="space-y-1">
-                  <Label>Target Multiplier (1-10)</Label>
+                  <Label htmlFor="target">Growth Target (%)</Label>
                   <Input
+                    id="target"
                     type="number"
-                    min={1}
-                    max={10}
-                    step={1}
-                    {...register("targetMultiplier", { valueAsNumber: true })}
-                    placeholder="e.g. 3"
+                    min={0}
+                    max={500}
+                    step={5}
+                    {...register("targetPercentage", { valueAsNumber: true })}
+                    placeholder="e.g. 30"
                   />
+                  <p className="text-xs text-muted-foreground">Increase amount or % to increase target sales</p>
+                  {errors.targetPercentage && (
+                    <p className="text-xs text-destructive">{errors.targetPercentage.message}</p>
+                  )}
                 </div>
               </div>
+
+              {/* Target Calculation Preview */}
               {(() => {
-                const paid = watch("amountPaid") ?? 0;
-                const mult = watch("targetMultiplier") ?? 0;
-                const computed = paid * mult;
-                return paid > 0 && mult > 0 ? (
-                  <p className="text-xs text-muted-foreground bg-muted/60 rounded-md px-3 py-2">
-                    Monthly Target = {rupees(paid)} × {mult} = <span className="font-semibold text-foreground">{rupees(computed)}</span>
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Enter amount paid and multiplier to calculate the monthly target.
-                  </p>
-                );
+                const allocated = watch("allocatedAmount") ?? 0;
+                const percentage = watch("targetPercentage") ?? 0;
+                return allocated > 0 && percentage > 0 ? (
+                  <div className="mt-3">
+                    <DoctorTargetCard 
+                      allocatedAmount={allocated} 
+                      targetPercentage={percentage} 
+                      compact={true}
+                    />
+                  </div>
+                ) : null;
               })()}
             </div>
 

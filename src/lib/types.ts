@@ -103,7 +103,9 @@ export interface Doctor {
   name: string;
   type: DoctorType;
   phone?: string;
-  targetAmount: number; // monthly billing target in ₹
+  allocatedAmount: number; // monthly credit/budget given to doctor in ₹
+  targetPercentage: number; // target growth percentage (e.g., 20 for 20%)
+  targetAmount: number; // derived: allocatedAmount × (1 + targetPercentage/100)
   createdAt: string;
 }
 
