@@ -41,7 +41,7 @@ interface ReportsProps {
   tenant: string;
 }
 
-type Tab = "expiry" | "valuation" | "movement" | "invoices" | "sales" | "purchase" | "gst" | "doctor";
+type Tab = "expiry" | "valuation" | "movement" | "invoices" | "sales" | "purchase" | "scheme" | "gst" | "doctor";
 
 const tabs: { key: Tab; label: string }[] = [
   { key: "expiry",    label: "Expiry Report" },
@@ -50,6 +50,7 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "invoices",  label: "Invoices" },
   { key: "sales",     label: "Sales Register" },
   { key: "purchase",  label: "Purchase Register" },
+  { key: "scheme",    label: "Scheme Tracking" },
   { key: "gst",       label: "GST Summary" },
   { key: "doctor",    label: "Doctor Reference" },
 ];
@@ -101,9 +102,9 @@ export function Reports({ tenant }: ReportsProps) {
   );
 
   // Tabs that respect the date filter
-  const DATE_TABS: Tab[] = ["invoices", "sales", "purchase", "gst", "doctor"];
+  const DATE_TABS: Tab[] = ["invoices", "sales", "purchase", "scheme", "gst", "doctor"];
   // Tabs that support CSV export
-  const CSV_TABS: Tab[] = ["expiry", "invoices", "sales", "purchase"];
+  const CSV_TABS: Tab[] = ["expiry", "invoices", "sales", "purchase", "scheme"];
 
   // Search state
   const [invoiceSearch, setInvoiceSearch] = useState("");
@@ -290,6 +291,43 @@ export function Reports({ tenant }: ReportsProps) {
         }),
       ];
       downloadCsv(rows, `purchase-register-${dateLabel}.csv`);
+    } else if (activeTab === "scheme") {
+      const schemeMap: Record<string, { itemName: string; received: number; distributed: number; purchasePrice: number }> = {};
+      
+      // Collect scheme data from purchase bills
+      filteredBills.forEach((bill) => {
+        bill.items.forEach((item) => {
+          if (item.schemeQuantity && item.schemeQuantity > 0) {
+            if (!schemeMap[item.itemName]) {
+              schemeMap[item.itemName] = { itemName: item.itemName, received: 0, distributed: 0, purchasePrice: item.purchasePrice || 0 };
+            }
+            schemeMap[item.itemName].received += item.schemeQuantity;
+          }
+        });
+      });
+      
+      // Collect scheme data from invoices
+      filteredInvoices.forEach((inv) => {
+        inv.lineItems.forEach((line) => {
+          if (line.schemeQuantity && line.schemeQuantity > 0) {
+            if (!schemeMap[line.itemName]) {
+              schemeMap[line.itemName] = { itemName: line.itemName, received: 0, distributed: 0, purchasePrice: 0 };
+            }
+            schemeMap[line.itemName].distributed += line.schemeQuantity;
+          }
+        });
+      });
+      
+      const rows: (string | number)[][] = [
+        ["Item Name", "Received (Free)", "Distributed (Free)", "Scheme Benefit (₹)"],
+        ...Object.values(schemeMap).map((data) => [
+          data.itemName,
+          data.received,
+          data.distributed,
+          data.received * data.purchasePrice,
+        ]),
+      ];
+      downloadCsv(rows, `scheme-tracking-${dateLabel}.csv`);
     }
   }
 
@@ -1045,6 +1083,108 @@ export function Reports({ tenant }: ReportsProps) {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Scheme Tracking ───────────────────────────────────────── */}
+          {activeTab === "scheme" && (() => {
+            const schemeMap: Record<string, { itemName: string; received: number; distributed: number; purchasePrice: number }> = {};
+            
+            // Collect scheme data from purchase bills
+            filteredBills.forEach((bill) => {
+              bill.items.forEach((item) => {
+                if (item.schemeQuantity && item.schemeQuantity > 0) {
+                  if (!schemeMap[item.itemName]) {
+                    schemeMap[item.itemName] = { itemName: item.itemName, received: 0, distributed: 0, purchasePrice: item.purchasePrice || 0 };
+                  }
+                  schemeMap[item.itemName].received += item.schemeQuantity;
+                }
+              });
+            });
+            
+            // Collect scheme data from invoices
+            filteredInvoices.forEach((inv) => {
+              inv.lineItems.forEach((line) => {
+                if (line.schemeQuantity && line.schemeQuantity > 0) {
+                  if (!schemeMap[line.itemName]) {
+                    schemeMap[line.itemName] = { itemName: line.itemName, received: 0, distributed: 0, purchasePrice: 0 };
+                  }
+                  schemeMap[line.itemName].distributed += line.schemeQuantity;
+                }
+              });
+            });
+            
+            const rows = Object.values(schemeMap);
+            const totalReceived = rows.reduce((s, r) => s + r.received, 0);
+            const totalDistributed = rows.reduce((s, r) => s + r.distributed, 0);
+            const totalBenefit = rows.reduce((s, r) => s + (r.received * r.purchasePrice), 0);
+            const inventory = totalReceived - totalDistributed;
+            
+            return (
+              <div className="space-y-6">
+                {/* Summary cards */}
+                <div className="grid grid-cols-4 gap-4">
+                  {[
+                    { label: "Total Received (Free)", value: String(totalReceived), color: "bg-green-50", textColor: "text-green-700", icon: "📦" },
+                    { label: "Total Distributed (Free)", value: String(totalDistributed), color: "bg-blue-50", textColor: "text-blue-700", icon: "📤" },
+                    { label: "Scheme Benefit Value", value: rupees(totalBenefit), color: "bg-purple-50", textColor: "text-purple-700", icon: "💰" },
+                    { label: "Inventory Advantage", value: String(inventory), color: inventory > 0 ? "bg-amber-50" : "bg-gray-50", textColor: inventory > 0 ? "text-amber-700" : "text-gray-700", icon: "📊" },
+                  ].map(({ label, value, color, textColor, icon }) => (
+                    <Card key={label} className={`border border-border shadow-none ${color}`}>
+                      <CardContent className="p-4">
+                        <div className="text-2xl mb-2">{icon}</div>
+                        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                        <p className={`text-lg font-bold ${textColor}`}>{value}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Scheme table */}
+                <Card className="border border-border shadow-none">
+                  <CardContent className="p-0">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-3 px-4 font-semibold text-xs uppercase text-muted-foreground">Item</th>
+                          <th className="text-right py-3 px-4 font-semibold text-xs uppercase text-muted-foreground">Received</th>
+                          <th className="text-right py-3 px-4 font-semibold text-xs uppercase text-muted-foreground">Distributed</th>
+                          <th className="text-right py-3 px-4 font-semibold text-xs uppercase text-muted-foreground">Inventory</th>
+                          <th className="text-right py-3 px-4 font-semibold text-xs uppercase text-muted-foreground">Benefit Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={row.itemName} className="border-b hover:bg-muted/40">
+                            <td className="py-3 px-4 font-medium">{row.itemName}</td>
+                            <td className="py-3 px-4 text-right text-green-700 font-semibold">{row.received}</td>
+                            <td className="py-3 px-4 text-right text-blue-700 font-semibold">{row.distributed}</td>
+                            <td className={`py-3 px-4 text-right font-semibold ${row.received - row.distributed > 0 ? "text-amber-700" : "text-gray-600"}`}>
+                              {row.received - row.distributed}
+                            </td>
+                            <td className="py-3 px-4 text-right text-purple-700 font-semibold">{rupees(row.received * row.purchasePrice)}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t-2 border-border bg-muted/50 font-semibold">
+                          <td className="py-3 px-4">TOTAL</td>
+                          <td className="py-3 px-4 text-right text-green-700">{totalReceived}</td>
+                          <td className="py-3 px-4 text-right text-blue-700">{totalDistributed}</td>
+                          <td className={`py-3 px-4 text-right ${inventory > 0 ? "text-amber-700" : "text-gray-700"}`}>{inventory}</td>
+                          <td className="py-3 px-4 text-right text-purple-700">{rupees(totalBenefit)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+
+                {inventory > 0 && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-900">
+                      <strong>Inventory Advantage:</strong> You have {inventory} more free items received from suppliers than distributed to customers. This represents a potential value of {rupees(inventory * 500)} (at average cost).
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })()}

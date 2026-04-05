@@ -137,6 +137,8 @@ export const handlers = [
       mrp: number;
       purchasePrice: number;
       quantity: number;
+      schemeQuantity?: number;
+      schemePattern?: string;
     }>;
     const taxableAmount = items.reduce((sum, i) => sum + i.purchasePrice * i.quantity, 0);
 
@@ -170,10 +172,12 @@ export const handlers = [
         expiryDate: item.expiryDate,
         mrp: item.mrp,
         purchasePrice: item.purchasePrice,
-        availableQty: item.quantity,
+        availableQty: item.quantity + (item.schemeQuantity || 0),
         originalQty: item.quantity,
         status: getInventoryStatus(item.expiryDate),
         createdAt: new Date().toISOString(),
+        schemeQuantity: item.schemeQuantity,
+        schemePattern: item.schemePattern,
       };
       await db.addBatch(newBatch);
     }

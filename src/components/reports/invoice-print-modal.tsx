@@ -58,7 +58,7 @@ function buildPrintHtml(
         <td style="font-family:monospace;font-size:10px">${esc(l.batchNumber)}</td>
         <td>${esc(l.expiryDate)}</td>
         <td style="text-align:right">${fmt(l.mrp)}</td>
-        <td style="text-align:right">${l.quantity}</td>
+        <td style="text-align:right">${l.quantity}${l.schemeQuantity ? " <strong>+"+l.schemeQuantity+"</strong>" : ""}</td>
         <td style="text-align:right">${l.discountValue ? (l.discountType === "percentage" ? l.discountValue + "%" : fmt(l.discountValue)) : "—"}</td>
         <td style="text-align:right">${l.gstRate}%</td>
         <td style="text-align:right">${fmt(l.taxableAmount)}</td>
@@ -134,7 +134,7 @@ td{padding:5px 7px;vertical-align:middle}
 <table>
   <thead><tr>
     <th>#</th><th>Item</th><th>HSN</th><th>Batch</th><th>Expiry</th>
-    <th style="text-align:right">MRP</th><th style="text-align:right">Qty</th>
+    <th style="text-align:right">MRP</th><th style="text-align:right">Qty<span style="font-size:9px;font-weight:400">(+Free)</span></th>
     <th style="text-align:right">Disc</th><th style="text-align:right">GST%</th>
     <th style="text-align:right">Taxable</th><th style="text-align:right">GST Amt</th>
     <th style="text-align:right">Total</th>

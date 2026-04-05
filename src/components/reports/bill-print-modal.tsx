@@ -55,7 +55,7 @@ function buildPrintHtml(
         <td>${esc(item.expiryDate)}</td>
         <td style="text-align:right">${fmt(item.mrp)}</td>
         <td style="text-align:right">${fmt(item.purchasePrice)}</td>
-        <td style="text-align:right">${item.quantity}</td>
+        <td style="text-align:right">${item.quantity}${item.schemeQuantity ? " <strong>+"+item.schemeQuantity+"</strong>" : ""}</td>
         <td style="text-align:right">${item.gstRate}%</td>
         <td style="text-align:right">${fmt(item.taxableAmount)}</td>
         <td style="text-align:right">${fmt(item.cgst + item.sgst)}</td>
@@ -131,7 +131,7 @@ td{padding:5px 7px;vertical-align:middle}
   <thead><tr>
     <th>#</th><th>Item</th><th>HSN</th><th>Batch</th><th>Expiry</th>
     <th style="text-align:right">MRP</th><th style="text-align:right">Purchase Price</th>
-    <th style="text-align:right">Qty</th><th style="text-align:right">GST%</th>
+    <th style="text-align:right">Qty<span style="font-size:9px;font-weight:400">(+Free)</span></th><th style="text-align:right">GST%</th>
     <th style="text-align:right">Taxable</th><th style="text-align:right">GST Amt</th>
     <th style="text-align:right">Total</th>
   </tr></thead>
