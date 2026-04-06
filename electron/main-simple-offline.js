@@ -1,7 +1,12 @@
 const { app, BrowserWindow } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
 let mainWindow;
+
+// Auto-updater configuration
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -34,7 +39,62 @@ function createWindow() {
       mainWindow.loadFile(path.join(__dirname, 'offline.html'));
     }
   });
+
+  // Check for updates after window loads
+  mainWindow.webContents.on('did-finish-load', () => {
+    // Only check for updates in production
+    if (!app.isPackaged) {
+      console.log('Development mode - skipping update check');
+      return;
+    }
+    
+    console.log('Checking for updates...');
+    autoUpdater.checkForUpdates();
+  });
 }
+
+// Auto-updater event handlers
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info.version);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      type: 'available',
+      version: info.version
+    });
+  }
+  // Auto-download the update
+  autoUpdater.downloadUpdate();
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('App is up to date:', info.version);
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const message = `Download: ${Math.round(progressObj.percent)}%`;
+  console.log(message);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      type: 'downloading',
+      percent: Math.round(progressObj.percent)
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info.version);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      type: 'ready',
+      version: info.version
+    });
+  }
+  // Will install on quit
+});
+
+autoUpdater.on('error', (err) => {
+  console.error('Auto-updater error:', err);
+});
 
 app.whenReady().then(createWindow);
 

@@ -1,7 +1,7 @@
 {
   "name": "medixor",
-  "version": "1.0.0",
-  "description": "Medical Inventory Management System - Offline First",
+  "version": "1.0.0-beta.1",
+  "description": "Medical Inventory Management System - Offline First (Beta)",
   "main": "electron/main-simple-offline.js",
   "private": true,
   "scripts": {
@@ -28,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "lucide-react": "^1.7.0",
     "msw": "^2.12.14",
@@ -58,6 +59,7 @@
     "cross-env": "^10.1.0",
     "electron": "^41.1.1",
     "electron-builder": "^26.8.1",
+    "electron-updater": "^6.8.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
@@ -67,7 +69,7 @@
   },
   "build": {
     "appId": "com.medixor.app",
-    "productName": "Medixor",
+    "productName": "Medixor Beta",
     "directories": {
       "output": "dist-electron"
     },
@@ -76,8 +78,13 @@
       "package.json"
     ],
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "electron/app-icon.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "tajaherikar",
+      "repo": "Medixor"
     }
   },
   "msw": {
