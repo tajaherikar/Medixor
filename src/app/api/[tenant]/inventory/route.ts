@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db";
 import { getInventoryStatus } from "@/lib/batch-logic";
+import { validateTenantAccess } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,13 @@ export async function GET(
   { params }: { params: Promise<{ tenant: string }> }
 ) {
   const { tenant } = await params;
+  
+  // SECURITY: Validate user has access to this tenant
+  const authResult = await validateTenantAccess(req, tenant);
+  if (authResult instanceof NextResponse) {
+    return authResult; // Return 401/403 error
+  }
+  
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
   const search = url.searchParams.get("search")?.toLowerCase();
@@ -35,6 +43,13 @@ export async function POST(
   { params }: { params: Promise<{ tenant: string }> }
 ) {
   const { tenant } = await params;
+  
+  // SECURITY: Validate user has access to this tenant
+  const authResult = await validateTenantAccess(req, tenant);
+  if (authResult instanceof NextResponse) {
+    return authResult; // Return 401/403 error
+  }
+  
   const body = await req.json() as Record<string, unknown>;
   const newBatch = {
     id: `bat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

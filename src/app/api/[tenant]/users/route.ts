@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { validateTenantAccess } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ tenant: string }> }
 ) {
   const { tenant } = await params;
+  const authResult = await validateTenantAccess(req, tenant);
+  if (authResult instanceof NextResponse) return authResult;
+  
   const users = await db.getUsers(tenant);
   return NextResponse.json(users.map(({ passwordHash: _ph, ...u }) => u));
 }
@@ -18,6 +22,9 @@ export async function POST(
   { params }: { params: Promise<{ tenant: string }> }
 ) {
   const { tenant } = await params;
+  const authResult = await validateTenantAccess(req, tenant);
+  if (authResult instanceof NextResponse) return authResult;
+  
   const body = await req.json() as { name: string; email: string; password: string; role: string };
   const passwordHash = await bcrypt.hash(body.password, 10);
   const newUser = {

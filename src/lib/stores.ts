@@ -31,6 +31,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         const res = await fetch("/api/auth/login", {
           method: "POST",
+          credentials: "same-origin", // Ensure cookies are included
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
         });
@@ -40,6 +41,17 @@ export const useAuthStore = create<AuthState>()(
         return true;
       },
       logout: async () => {
+        // Call backend to clear server-side session cookie
+        try {
+          await fetch("/api/auth/logout", { 
+            method: "POST",
+            credentials: "same-origin",
+          });
+        } catch (error) {
+          console.error("Logout API error:", error);
+        }
+        
+        // Clear client-side state
         set({ user: null });
         // Clear persisted settings so the next login starts with a clean slate
         useSettingsStore.getState().resetSettings();

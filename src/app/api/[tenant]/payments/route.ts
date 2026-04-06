@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db";
+import { validateTenantAccess } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ tenant: string }> }
 ) {
   const { tenant } = await params;
+  const authResult = await validateTenantAccess(req, tenant);
+  if (authResult instanceof NextResponse) return authResult;
+  
   const url = new URL(req.url);
   const partyId = url.searchParams.get("partyId");
   const partyType = url.searchParams.get("partyType");
@@ -22,6 +26,9 @@ export async function POST(
   { params }: { params: Promise<{ tenant: string }> }
 ) {
   const { tenant } = await params;
+  const authResult = await validateTenantAccess(req, tenant);
+  if (authResult instanceof NextResponse) return authResult;
+  
   const body = await req.json() as Record<string, unknown>;
   const payment = {
     id: `pay-${Date.now()}`,

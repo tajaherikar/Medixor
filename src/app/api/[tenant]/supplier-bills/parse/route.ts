@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PDFParse } from "pdf-parse";
 import { createWorker } from "tesseract.js";
 import { SupplierBillItem, GstRate } from "@/lib/types";
+import { validateTenantAccess } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
@@ -50,8 +51,15 @@ function parseItemObject(raw: Record<string, string | number | boolean>): Suppli
   };
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ tenant: string }> }
+) {
   try {
+    const { tenant } = await params;
+    const authResult = await validateTenantAccess(req, tenant);
+    if (authResult instanceof NextResponse) return authResult;
+    
     const body = await req.formData();
     const file = body.get("file");
 

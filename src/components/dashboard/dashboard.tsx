@@ -7,6 +7,7 @@ import { Batch, Invoice } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryBadge } from "@/components/ui/expiry-badge";
+import { safeFetchArray } from "@/lib/api-fetch";
 import {
   BarChart,
   Bar,
@@ -43,16 +44,12 @@ export function Dashboard({ tenant }: DashboardProps) {
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all", ""],
-    queryFn: async () => {
-      const res = await fetch(`/api/${tenant}/inventory`);
-      if (!res.ok) throw new Error("Failed to fetch inventory");
-      return res.json();
-    },
+    queryFn: () => safeFetchArray<Batch>(`/api/${tenant}/inventory`),
   });
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices", tenant],
-    queryFn: () => fetch(`/api/${tenant}/invoices`).then((r) => r.json()),
+    queryFn: () => safeFetchArray<Invoice>(`/api/${tenant}/invoices`),
   });
 
   const active     = batches.filter((b) => b.status === "active");

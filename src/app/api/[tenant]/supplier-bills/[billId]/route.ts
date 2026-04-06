@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db";
 import { SupplierBill, Batch } from "@/lib/types";
 import { getInventoryStatus } from "@/lib/batch-logic";
+import { validateTenantAccess } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,9 @@ export async function PUT(
 ) {
   try {
     const { tenant, billId } = await params;
+    const authResult = await validateTenantAccess(req, tenant);
+    if (authResult instanceof NextResponse) return authResult;
+    
     const body = await req.json();
 
     // Get existing bill to compare items
