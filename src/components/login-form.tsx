@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  Cross, Eye, EyeOff, LogIn,
+  Cross, Eye, EyeOff, LogIn, Loader,
   Package2, Receipt, Truck, Users,
   Stethoscope, BarChart3,
 } from "lucide-react";
@@ -92,7 +92,7 @@ export function LoginForm() {
 
   function onSubmit(values: LoginValues) {
     setAuthError("");
-    login(values.email, values.password).then((ok) => {
+    return login(values.email, values.password).then((ok) => {
       if (!ok) {
         setAuthError("Invalid email or password.");
         return;
@@ -101,7 +101,7 @@ export function LoginForm() {
       const tenantId: string = stored?.state?.user?.tenantId ?? "demo";
       
       // Clear React Query cache on successful login to avoid data leakage
-      import("@/components/providers").then(({ queryClient }) => {
+      return import("@/components/providers").then(({ queryClient }) => {
         queryClient.clear();
         
         // Redirect to original page if available, otherwise dashboard
@@ -284,9 +284,23 @@ export function LoginForm() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              <LogIn className="h-4 w-4 mr-2" />
-              Sign in
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting}
+              aria-busy={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign in
+                </>
+              )}
             </Button>
           </form>
         </div>
