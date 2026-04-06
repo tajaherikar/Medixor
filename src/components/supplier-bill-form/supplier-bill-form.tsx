@@ -399,7 +399,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                   <div className="space-y-1">
                     <Label>Unit Type <span className="text-muted-foreground">(optional)</span></Label>
                     <Select
-                      value={emptyItem.unitType}
+                      value={watchedItems?.[index]?.unitType || ""}
                       onValueChange={(v) => setValue(`items.${index}.unitType`, v as UnitType)}
                     >
                       <SelectTrigger className="w-full">

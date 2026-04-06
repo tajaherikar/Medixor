@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 /* ── Login page animations ──────────────────────────────────────────────── */
 @keyframes login-fade-up {
