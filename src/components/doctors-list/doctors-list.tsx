@@ -87,6 +87,8 @@ export function DoctorsList({ tenant }: DoctorsListProps) {
       if (!res.ok) throw new Error("Failed to fetch doctors");
       return res.json();
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const addMutation = useMutation({

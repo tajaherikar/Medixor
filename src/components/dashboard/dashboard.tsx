@@ -45,11 +45,15 @@ export function Dashboard({ tenant }: DashboardProps) {
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all", ""],
     queryFn: () => safeFetchArray<Batch>(`/api/${tenant}/inventory`),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices", tenant],
     queryFn: () => safeFetchArray<Invoice>(`/api/${tenant}/invoices`),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const active     = batches.filter((b) => b.status === "active");

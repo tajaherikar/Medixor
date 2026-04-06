@@ -46,13 +46,22 @@ interface SuppliersListProps {
 export function SuppliersList({ tenant }: SuppliersListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
 
   const { data: suppliers = [], isLoading } = useQuery<Supplier[]>({
-    queryKey: ["suppliers", tenant],
-    queryFn: () => fetch(`/api/${tenant}/suppliers`).then((r) => r.json()),
+    queryKey: ["suppliers", tenant, search],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      const res = await fetch(`/api/${tenant}/suppliers?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch suppliers");
+      return res.json();
+    },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const addMutation = useMutation({
@@ -123,19 +132,27 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
     <>
       <div className="rounded-xl border border-border overflow-hidden bg-card shadow-sm">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div>
-            <h3 className="font-semibold text-sm">Supplier Directory</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""} registered
-            </p>
+        <div className="space-y-4 px-5 py-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-sm">Supplier Directory</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""} registered
+              </p>
+            </div>
+            {isAdmin && (
+              <Button size="sm" onClick={() => setDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add Supplier
+              </Button>
+            )}
           </div>
-          {isAdmin && (
-            <Button size="sm" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Add Supplier
-            </Button>
-          )}
+          <Input
+            placeholder="Search by name, phone, or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8"
+          />
         </div>
 
         {/* Table */}

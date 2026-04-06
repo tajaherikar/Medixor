@@ -63,6 +63,8 @@ export function BatchSelector({ tenant, strategy, onAdd }: BatchSelectorProps) {
       return res.json();
     },
     enabled: !!selectedItem,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const sortedBatches =
@@ -104,6 +106,8 @@ export function BatchSelector({ tenant, strategy, onAdd }: BatchSelectorProps) {
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const uniqueItems = Array.from(new Set(allBatches.filter((b) => b.availableQty > 0).map((b) => b.itemName)));

@@ -98,6 +98,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       if (!res.ok) throw new Error("Failed to fetch customers");
       return res.json();
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const { data: doctors = [] } = useQuery<Doctor[]>({
@@ -108,6 +110,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       const data = await res.json();
       return Array.isArray(data) ? data : [];
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const selectedCustomer = customers.find((c) => c.id === customerId);

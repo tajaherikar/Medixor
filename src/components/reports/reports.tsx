@@ -113,20 +113,28 @@ export function Reports({ tenant }: ReportsProps) {
   const { data: batches = [], isLoading: batchLoading } = useQuery<Batch[]>({
     queryKey: ["inventory", tenant, "all"],
     queryFn: () => fetchInventory(tenant),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const { data: invoices = [], isLoading: invoiceLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices", tenant],
     queryFn: () => fetchInvoices(tenant),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const { data: supplierBills = [], isLoading: billsLoading } = useQuery<SupplierBill[]>({
     queryKey: ["supplier-bills", tenant],
     queryFn: () => fetchSupplierBills(tenant),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
   const { data: doctors = [], isLoading: doctorLoading } = useQuery<Doctor[]>({
     queryKey: ["doctors", tenant],
     queryFn: () => fetchDoctors(tenant),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
   // ─── Date-filtered data ───────────────────────────────────────────────────
   const filteredInvoices = useMemo(() => {

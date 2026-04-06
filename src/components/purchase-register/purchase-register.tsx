@@ -63,6 +63,8 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   const { data: bills = [], isLoading } = useQuery<SupplierBill[]>({
     queryKey: ["supplier-bills", tenant],
     queryFn: () => fetch(`/api/${tenant}/supplier-bills`).then((r) => r.json()),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const payMutation = useMutation({

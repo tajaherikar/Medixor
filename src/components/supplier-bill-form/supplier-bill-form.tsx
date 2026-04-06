@@ -100,6 +100,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
       if (!res.ok) throw new Error("Failed to fetch suppliers");
       return res.json();
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const {

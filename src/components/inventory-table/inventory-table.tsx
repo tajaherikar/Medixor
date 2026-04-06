@@ -182,6 +182,8 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
       if (!res.ok) throw new Error("Failed to fetch inventory");
       return res.json();
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   // Client-side low stock filter: show only batches with qty < threshold

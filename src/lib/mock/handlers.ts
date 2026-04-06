@@ -8,9 +8,21 @@ const BASE = "/api";
 
 export const handlers = [
   // ── Suppliers ──────────────────────────────────────────────────────────────
-  http.get(`${BASE}/:tenant/suppliers`, async ({ params }) => {
+  http.get(`${BASE}/:tenant/suppliers`, async ({ request, params }) => {
     const tenant = params.tenant as string;
-    const suppliers = await db.getSuppliers(tenant);
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search")?.toLowerCase();
+
+    let suppliers = await db.getSuppliers(tenant);
+    if (search) {
+      suppliers = suppliers.filter(
+        (s) =>
+          s.name.toLowerCase().includes(search) ||
+          s.phone?.toLowerCase().includes(search) ||
+          s.email?.toLowerCase().includes(search) ||
+          s.gstNumber?.toLowerCase().includes(search)
+      );
+    }
     return HttpResponse.json(suppliers);
   }),
 
@@ -52,9 +64,21 @@ export const handlers = [
   }),
 
   // ── Customers ─────────────────────────────────────────────────────────────
-  http.get(`${BASE}/:tenant/customers`, async ({ params }) => {
+  http.get(`${BASE}/:tenant/customers`, async ({ request, params }) => {
     const tenant = params.tenant as string;
-    const customers = await db.getCustomers(tenant);
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search")?.toLowerCase();
+
+    let customers = await db.getCustomers(tenant);
+    if (search) {
+      customers = customers.filter(
+        (c) =>
+          c.name.toLowerCase().includes(search) ||
+          c.phone?.toLowerCase().includes(search) ||
+          c.email?.toLowerCase().includes(search) ||
+          c.gstNumber?.toLowerCase().includes(search)
+      );
+    }
     return HttpResponse.json(customers);
   }),
 
