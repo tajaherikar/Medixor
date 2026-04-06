@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, Printer } from "lucide-react";
+import { Trash2, Printer, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { InvoicePrintModal } from "@/components/reports/invoice-print-modal";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
@@ -43,6 +43,7 @@ interface LineItem {
   batchNumber: string;
   expiryDate: string;
   mrp: number;
+  sellingPrice: number;
   quantity: number;
   discountType: DiscountType;
   discountValue: number;
@@ -100,7 +101,12 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
   const { data: doctors = [] } = useQuery<Doctor[]>({
     queryKey: ["doctors", tenant],
-    queryFn: () => fetch(`/api/${tenant}/doctors`).then((r) => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/${tenant}/doctors`);
+      if (!res.ok) throw new Error("Failed to fetch doctors");
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
   });
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
@@ -139,6 +145,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
             batchNumber: a.batchNumber,
             expiryDate: a.expiryDate,
             mrp: a.mrp,
+            sellingPrice: a.sellingPrice ?? a.mrp,
             quantity: a.qty,
             discountType: "percentage",
             discountValue: 0,
@@ -403,11 +410,13 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       </div>
 
       {/* Batch Selector */}
-      <BatchSelector
-        tenant={tenant}
-        strategy={strategy}
-        onAdd={handleAddAllocations}
-      />
+      <div data-batch-selector>
+        <BatchSelector
+          tenant={tenant}
+          strategy={strategy}
+          onAdd={handleAddAllocations}
+        />
+      </div>
 
       {/* Line Items Table */}
       {lineItems.length > 0 && (
@@ -425,6 +434,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                   <TableHead>Batch</TableHead>
                   <TableHead>Expiry</TableHead>
                   <TableHead>MRP</TableHead>
+                  <TableHead>Rate ₹</TableHead>
                   <TableHead>Qty</TableHead>
                   <TableHead>Discount</TableHead>
                   <TableHead>GST Type</TableHead>
@@ -439,7 +449,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
               <TableBody>
                 {lineItems.map((l, index) => {
                   const gstCalc = lineGst[index];
-                  const lineTotal = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
+                  const lineTotal = calcLineTotal(l.sellingPrice, l.quantity, l.discountType, l.discountValue);
                   const halfGst = gstCalc.gstAmt / 2;
                   return (
                     <TableRow key={l.batchId}>
@@ -461,7 +471,18 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{l.batchNumber}</TableCell>
                       <TableCell className="text-xs">{format(parseISO(l.expiryDate), "dd MMM yy")}</TableCell>
-                      <TableCell>₹{l.mrp}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">₹{l.mrp}</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={0.5}
+                          value={l.sellingPrice}
+                          onChange={(e) => updateLineItem(l.batchId, "sellingPrice", Number(e.target.value))}
+                          className="w-20 h-7"
+                          title="Rate charged to customer (can override MRP)"
+                        />
+                      </TableCell>
                       <TableCell>
                         <Input
                           type="number"
@@ -729,6 +750,23 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
         tenant={tenant}
         onClose={() => setPrintInvoice(null)}
       />
+
+      {/* Floating Add Item Button (bottom-right, always visible when items exist) */}
+      {lineItems.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+          <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-lg shadow-md p-3 animate-pulse">
+            <span className="text-sm font-medium text-muted-foreground">Need more items?</span>
+          </div>
+          <button
+            onClick={() => document.querySelector('[data-batch-selector]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+            className="h-14 w-14 md:w-auto md:px-4 rounded-full md:rounded-lg bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-110 md:hover:scale-105 transition-all flex items-center justify-center gap-2 font-medium"
+            title="Add another item to invoice"
+          >
+            <Plus className="h-6 w-6" />
+            <span className="hidden md:inline text-sm">Add Item</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

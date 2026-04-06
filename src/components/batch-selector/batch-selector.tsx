@@ -33,6 +33,7 @@ export interface SelectedBatchAllocation {
   itemName: string;
   expiryDate: string;
   mrp: number;
+  sellingPrice?: number; // Default to mrp if not provided
   qty: number;
   unitType?: UnitType;
   packSize?: number;

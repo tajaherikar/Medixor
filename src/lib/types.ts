@@ -225,6 +225,7 @@ export interface InvoiceLineItem {
   batchNumber: string;
   expiryDate: string;
   mrp: number;
+  sellingPrice?: number; // Rate charged to customer (can override MRP)
   quantity: number;
   discountType?: DiscountType;
   discountValue?: number; // % or flat
@@ -275,6 +276,7 @@ export interface BillingLineItemDraft {
   batchNumber: string;
   expiryDate: string;
   mrp: number;
+  sellingPrice: number; // Rate charged to customer (can override MRP)
   quantity: number;
   availableQty: number;
   discountType: DiscountType;
