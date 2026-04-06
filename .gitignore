@@ -48,6 +48,15 @@ medixor.db
 medixor.db-shm
 medixor.db-wal
 
+# Electron build artifacts
+/dist-electron/
+/medixor-app/
+Medixor-Offline-*/
+
+# Credentials and secrets
+*CREDENTIALS*.txt
+*credentials*.txt
+
 # Electron Desktop App
 medixor-app/
 dist-electron/
