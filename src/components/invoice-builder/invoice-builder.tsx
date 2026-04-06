@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays } from "date-fns";
 import { Customer, Doctor, BatchSelectionStrategy, DiscountType, GstRate, PaymentStatus, UnitType } from "@/lib/types";
 import { calcLineTotal, calcGrandTotal } from "@/lib/discount";
+import { calculateInvoice } from "@/lib/gst-calculator";
 import { BatchSelector, SelectedBatchAllocation } from "@/components/batch-selector/batch-selector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -168,35 +169,27 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     );
   }
 
-  // GST per line item
-  const lineGst = lineItems.map((l) => {
-    const lineTotal = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
-    let taxable: number;
-    let gstAmt: number;
-
-    if (l.gstInclusive) {
-      // GST inclusive: MRP already includes GST
-      gstAmt = lineTotal * (l.gstRate / (100 + l.gstRate));
-      taxable = lineTotal - gstAmt;
-    } else {
-      // GST exclusive: GST added on top
-      taxable = lineTotal;
-      gstAmt = taxable * (l.gstRate / 100);
-    }
-
-    return { taxable, cgst: gstAmt / 2, sgst: gstAmt / 2, gstAmt };
-  });
-  const totalGst = lineGst.reduce((s, g) => s + g.gstAmt, 0);
-
-  const subtotal = lineGst.reduce((s, g) => s + g.taxable, 0);
-
-  const { customerDiscountAmount, grandTotal: grandTotalPreGst } = calcGrandTotal(
-    subtotal,
-    customerDiscountValue > 0 ? customerDiscountType : undefined,
-    customerDiscountValue > 0 ? customerDiscountValue : undefined
+  // GST per line item — using centralized calculator
+  const invoiceCalc = useMemo(
+    () =>
+      calculateInvoice(
+        lineItems,
+        customerDiscountValue > 0 ? customerDiscountType : undefined,
+        customerDiscountValue > 0 ? customerDiscountValue : undefined
+      ),
+    [lineItems, customerDiscountType, customerDiscountValue]
   );
 
-  const grandTotal = grandTotalPreGst + totalGst;
+  const lineGst = invoiceCalc.lines.map((l) => ({
+    taxable: l.taxable,
+    cgst: l.cgst,
+    sgst: l.sgst,
+    gstAmt: l.gstAmount,
+  }));
+  const totalGst = invoiceCalc.totalGst;
+  const subtotal = invoiceCalc.subtotal;
+  const customerDiscountAmount = invoiceCalc.customerDiscountAmount;
+  const grandTotal = invoiceCalc.grandTotal;
 
   async function handleSave() {
     // In Quick Bill mode, customer name defaults to "Walk-in Customer" if empty
@@ -212,43 +205,29 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       ...(selectedCustomer?.gstNumber && { customerGstNumber: selectedCustomer.gstNumber }),
       ...(selectedCustomer?.licenseNumber && { customerLicenseNumber: selectedCustomer.licenseNumber }),
       ...(selectedCustomer?.address && { customerAddress: selectedCustomer.address }),
-      lineItems: lineItems.map((l, i) => {
-        const lt = calcLineTotal(l.mrp, l.quantity, l.discountType, l.discountValue);
-        let taxable: number;
-        let gstAmt: number;
-        let lineTotalWithGst: number;
-
-        if (l.gstInclusive) {
-          gstAmt = lt * (l.gstRate / (100 + l.gstRate));
-          taxable = lt - gstAmt;
-          lineTotalWithGst = lt; // MRP already includes GST
-        } else {
-          taxable = lt;
-          gstAmt = taxable * (l.gstRate / 100);
-          lineTotalWithGst = lt + gstAmt; // Add GST to MRP
-        }
-
+      lineItems: invoiceCalc.lines.map((calc, i) => {
+        const l = lineItems[i];
         return {
           ...l,
-          lineTotal: taxable, // Always the taxable amount
-          taxableAmount: taxable,
-          gstAmount: gstAmt,
-          cgst: gstAmt / 2,
-          sgst: gstAmt / 2,
-          lineTotalWithGst,
+          lineTotal: calc.taxable, // Always the taxable amount
+          taxableAmount: calc.taxable,
+          gstAmount: calc.gstAmount,
+          cgst: calc.cgst,
+          sgst: calc.sgst,
+          lineTotalWithGst: calc.lineTotalWithGst,
         };
       }),
       ...(referredBy.trim() && { referredBy: referredBy.trim() }),
       ...(referredById && { referredById }),
       customerDiscountType,
       customerDiscountValue,
-      subtotal,
-      customerDiscountAmount,
-      taxableAmount: grandTotalPreGst,
-      totalGst,
-      grandTotal,
+      subtotal: invoiceCalc.subtotal,
+      customerDiscountAmount: invoiceCalc.customerDiscountAmount,
+      taxableAmount: invoiceCalc.subtotal - invoiceCalc.customerDiscountAmount,
+      totalGst: invoiceCalc.totalGst,
+      grandTotal: invoiceCalc.grandTotal,
       paymentStatus,
-      paidAmount: paymentStatus === "paid" ? grandTotal : paidAmount,
+      paidAmount: paymentStatus === "paid" ? invoiceCalc.grandTotal : paidAmount,
       dueDate: addDays(new Date(), 30).toISOString().split("T")[0],
     };
     const res = await fetch(`/api/${tenant}/invoices`, {

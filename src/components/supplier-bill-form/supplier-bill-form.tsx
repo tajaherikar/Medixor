@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, useMemo } from "react";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,6 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Supplier, GstRate, UnitType, SupplierBill } from "@/lib/types";
 import { useAuthStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
+import { calculateGst } from "@/lib/gst-calculator";
 import { format, parseISO } from "date-fns";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
@@ -153,23 +154,17 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty, submitted]);
 
-  // Live totals
-  const itemTotals = (watchedItems ?? []).map((item) => {
-    const qty = item.quantity || 0;
-    const price = item.purchasePrice || 0;
-    const rate = (item.gstRate || 0) / 100;
-    const gross = price * qty;
+  // Live totals — using centralized GST calculator
+  const itemTotals = useMemo(() => {
+    return (watchedItems ?? []).map((item) => {
+      const qty = item.quantity || 0;
+      const price = item.purchasePrice || 0;
+      const gross = price * qty;
 
-    if (item.gstInclusive) {
-      const taxable = rate > 0 ? gross / (1 + rate) : gross;
-      const gst = gross - taxable;
-      return { taxable, cgst: gst / 2, sgst: gst / 2, lineTotal: gross };
-    }
-
-    const taxable = gross;
-    const gst = taxable * rate;
-    return { taxable, cgst: gst / 2, sgst: gst / 2, lineTotal: taxable + gst };
-  });
+      const gst = calculateGst(gross, (item.gstRate || 0) as GstRate, item.gstInclusive ?? false);
+      return { taxable: gst.taxable, cgst: gst.cgst, sgst: gst.sgst, lineTotal: gst.taxable + gst.gstAmount };
+    });
+  }, [watchedItems]);
   const billTaxable = itemTotals.reduce((s, i) => s + i.taxable, 0);
   const billGst = itemTotals.reduce((s, i) => s + i.cgst + i.sgst, 0);
   const billTotal = billTaxable + billGst;
@@ -180,30 +175,17 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     const enrichedItems = data.items.map((item) => {
       const qty = item.quantity;
       const price = item.purchasePrice;
-      const rate = item.gstRate / 100;
       const gross = price * qty;
 
-      let taxableAmount: number;
-      let gstAmount: number;
-      let lineTotal: number;
-
-      if (item.gstInclusive) {
-        taxableAmount = rate > 0 ? gross / (1 + rate) : gross;
-        gstAmount = gross - taxableAmount;
-        lineTotal = gross;
-      } else {
-        taxableAmount = gross;
-        gstAmount = taxableAmount * rate;
-        lineTotal = taxableAmount + gstAmount;
-      }
+      const gst = calculateGst(gross, item.gstRate as GstRate, item.gstInclusive ?? false);
 
       return {
         ...item,
         hsnCode: item.hsnCode ?? "",
-        taxableAmount,
-        cgst: gstAmount / 2,
-        sgst: gstAmount / 2,
-        lineTotal,
+        taxableAmount: gst.taxable,
+        cgst: gst.cgst,
+        sgst: gst.sgst,
+        lineTotal: gst.taxable + gst.gstAmount,
       };
     });
 

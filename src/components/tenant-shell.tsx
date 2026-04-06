@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { TopHeader } from "@/components/top-header";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useAuthStore, useSettingsStore } from "@/lib/stores";
 import { setupAutoPreload } from "@/lib/preload";
 
@@ -110,7 +111,9 @@ export function TenantShell({ tenant, children }: TenantShellProps) {
       />
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <TopHeader tenant={tenant} onMenuOpen={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-auto p-6 md:p-8">{children}</main>
+        <main className="flex-1 overflow-auto p-6 md:p-8">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
     </div>
   );

@@ -43,8 +43,8 @@ export async function POST(
 
     // Deduct sold quantities from batch inventory
     const lineItems = (newInvoice.lineItems ?? []) as Array<{ batchId: string; quantity: number }>;
+    const batches = await db.getBatches(tenant);  // Load once, reuse for all items
     for (const item of lineItems) {
-      const batches = await db.getBatches(tenant);
       const batch = batches.find((b) => b.id === item.batchId);
       if (batch) {
         await db.updateBatch(batch.id, {
