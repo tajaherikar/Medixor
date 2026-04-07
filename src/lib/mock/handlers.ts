@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import { getInventoryStatus } from "@/lib/batch-logic";
-import * as db from "@/lib/db";
+import { localDb } from "@/lib/local-db";
 import { Batch, BusinessSettings } from "@/lib/types";
 import bcrypt from "bcryptjs";
 
@@ -12,8 +12,10 @@ export const handlers = [
     const tenant = params.tenant as string;
     const url = new URL(request.url);
     const search = url.searchParams.get("search")?.toLowerCase();
+    const limitStr = url.searchParams.get("limit");
+    const offsetStr = url.searchParams.get("offset");
 
-    let suppliers = await db.getSuppliers(tenant);
+    let suppliers = localDb.getSuppliers();
     if (search) {
       suppliers = suppliers.filter(
         (s) =>
@@ -23,7 +25,29 @@ export const handlers = [
           s.gstNumber?.toLowerCase().includes(search)
       );
     }
-    return HttpResponse.json(suppliers);
+    
+    // If no pagination params, return plain array for backward compatibility
+    if (!limitStr && !offsetStr) {
+      return HttpResponse.json(suppliers);
+    }
+    
+    // Handle pagination
+    const limit = limitStr ? parseInt(limitStr) : suppliers.length;
+    const offset = offsetStr ? parseInt(offsetStr) : 0;
+    const total = suppliers.length;
+    const paginatedSuppliers = suppliers.slice(offset, offset + limit);
+    const page = Math.floor(offset / limit);
+    const totalPages = Math.ceil(total / limit);
+    
+    return HttpResponse.json({
+      data: paginatedSuppliers,
+      total,
+      page,
+      pageSize: limit,
+      totalPages,
+      hasNextPage: offset + limit < total,
+      hasPreviousPage: offset > 0,
+    });
   }),
 
   // ── Inventory / Batches ────────────────────────────────────────────────────
@@ -33,7 +57,7 @@ export const handlers = [
     const status = url.searchParams.get("status");
     const search = url.searchParams.get("search")?.toLowerCase();
 
-    let batches = await db.getBatches(tenant);
+    let batches = localDb.getBatches();
 
     if (status && status !== "all") {
       batches = batches.filter((b) => b.status === status);
@@ -53,7 +77,7 @@ export const handlers = [
   http.get(`${BASE}/:tenant/inventory/:itemName`, async ({ params }) => {
     const tenant = params.tenant as string;
     const itemName = decodeURIComponent(params.itemName as string);
-    const all = await db.getBatches(tenant);
+    const all = localDb.getBatches();
     const batches = all.filter(
       (b) =>
         b.itemName.toLowerCase() === itemName.toLowerCase() &&
@@ -68,8 +92,10 @@ export const handlers = [
     const tenant = params.tenant as string;
     const url = new URL(request.url);
     const search = url.searchParams.get("search")?.toLowerCase();
+    const limitStr = url.searchParams.get("limit");
+    const offsetStr = url.searchParams.get("offset");
 
-    let customers = await db.getCustomers(tenant);
+    let customers = localDb.getCustomers();
     if (search) {
       customers = customers.filter(
         (c) =>
@@ -79,14 +105,63 @@ export const handlers = [
           c.gstNumber?.toLowerCase().includes(search)
       );
     }
-    return HttpResponse.json(customers);
+    
+    // If no pagination params, return plain array for backward compatibility
+    if (!limitStr && !offsetStr) {
+      return HttpResponse.json(customers);
+    }
+    
+    // Handle pagination
+    const limit = limitStr ? parseInt(limitStr) : customers.length;
+    const offset = offsetStr ? parseInt(offsetStr) : 0;
+    const total = customers.length;
+    const paginatedCustomers = customers.slice(offset, offset + limit);
+    const page = Math.floor(offset / limit);
+    const totalPages = Math.ceil(total / limit);
+    
+    return HttpResponse.json({
+      data: paginatedCustomers,
+      total,
+      page,
+      pageSize: limit,
+      totalPages,
+      hasNextPage: offset + limit < total,
+      hasPreviousPage: offset > 0,
+    });
   }),
 
   // ── Invoices ──────────────────────────────────────────────────────────────
-  http.get(`${BASE}/:tenant/invoices`, async ({ params }) => {
+  http.get(`${BASE}/:tenant/invoices`, async ({ request, params }) => {
     const tenant = params.tenant as string;
-    const invoices = await db.getInvoices(tenant);
-    return HttpResponse.json(invoices);
+    const url = new URL(request.url);
+    const limitStr = url.searchParams.get("limit");
+    const offsetStr = url.searchParams.get("offset");
+    
+    let invoices = localDb.getInvoices();
+    
+    // If no pagination params, return plain array for backward compatibility
+    if (!limitStr && !offsetStr) {
+      return HttpResponse.json(invoices);
+    }
+    
+    // Handle pagination
+    const limit = limitStr ? parseInt(limitStr) : invoices.length; // Default: all
+    const offset = offsetStr ? parseInt(offsetStr) : 0;
+    
+    const total = invoices.length;
+    const paginatedInvoices = invoices.slice(offset, offset + limit);
+    const page = Math.floor(offset / limit);
+    const totalPages = Math.ceil(total / limit);
+    
+    return HttpResponse.json({
+      data: paginatedInvoices,
+      total,
+      page,
+      pageSize: limit,
+      totalPages,
+      hasNextPage: offset + limit < total,
+      hasPreviousPage: offset > 0,
+    });
   }),
 
   http.post(`${BASE}/:tenant/invoices`, async ({ request, params }) => {
@@ -102,16 +177,16 @@ export const handlers = [
     // Deduct sold quantities from batch inventory
     const lineItems = (newInvoice.lineItems ?? []) as Array<{ batchId: string; quantity: number }>;
     for (const item of lineItems) {
-      const batches = await db.getBatches(tenant);
+      const batches = localDb.getBatches();
       const batch = batches.find((b) => b.id === item.batchId);
       if (batch) {
-        await db.updateBatch(batch.id, {
+        localDb.updateBatch(batch.id, {
           availableQty: Math.max(0, batch.availableQty - item.quantity),
         });
       }
     }
 
-    await db.addInvoice(newInvoice as never);
+    localDb.addInvoice(newInvoice as never);
     return HttpResponse.json(newInvoice, { status: 201 });
   }),
 
@@ -125,7 +200,7 @@ export const handlers = [
       createdAt: new Date().toISOString(),
       ...body,
     };
-    await db.addSupplier(newSupplier as never);
+    localDb.addSupplier(newSupplier as never);
     return HttpResponse.json(newSupplier, { status: 201 });
   }),
 
@@ -139,15 +214,42 @@ export const handlers = [
       createdAt: new Date().toISOString(),
       ...body,
     };
-    await db.addCustomer(newCustomer as never);
+    localDb.addCustomer(newCustomer as never);
     return HttpResponse.json(newCustomer, { status: 201 });
   }),
 
-  // ── Supplier Bills (Purchase Register) ────────────────────────────────────
-  http.get(`${BASE}/:tenant/supplier-bills`, async ({ params }) => {
+  // ── Supplier Bills ─────────────────────────────────────────────────────────
+  http.get(`${BASE}/:tenant/supplier-bills`, async ({ request, params }) => {
     const tenant = params.tenant as string;
-    const bills = await db.getSupplierBills(tenant);
-    return HttpResponse.json(bills);
+    const url = new URL(request.url);
+    const limitStr = url.searchParams.get("limit");
+    const offsetStr = url.searchParams.get("offset");
+    
+    let bills = localDb.getSupplierBills();
+    
+    // If no pagination params, return plain array for backward compatibility
+    if (!limitStr && !offsetStr) {
+      return HttpResponse.json(bills);
+    }
+    
+    // Handle pagination
+    const limit = limitStr ? parseInt(limitStr) : bills.length;
+    const offset = offsetStr ? parseInt(offsetStr) : 0;
+    
+    const total = bills.length;
+    const paginatedBills = bills.slice(offset, offset + limit);
+    const page = Math.floor(offset / limit);
+    const totalPages = Math.ceil(total / limit);
+    
+    return HttpResponse.json({
+      data: paginatedBills,
+      total,
+      page,
+      pageSize: limit,
+      totalPages,
+      hasNextPage: offset + limit < total,
+      hasPreviousPage: offset > 0,
+    });
   }),
 
   http.post(`${BASE}/:tenant/supplier-bills`, async ({ request, params }) => {
@@ -177,7 +279,7 @@ export const handlers = [
       paidAmount: 0,
       ...body,
     };
-    await db.addSupplierBill(newBill as never);
+    localDb.addSupplierBill(newBill as never);
 
     // Add each item as a new inventory batch
     const supplierId = (newBill.supplierId as string) ?? "";
@@ -203,7 +305,7 @@ export const handlers = [
         schemeQuantity: item.schemeQuantity,
         schemePattern: item.schemePattern,
       };
-      await db.addBatch(newBatch);
+      localDb.addBatch(newBatch);
     }
 
     return HttpResponse.json(newBill, { status: 201 });
@@ -214,7 +316,7 @@ export const handlers = [
     const billId = params.billId as string;
     const body = await request.json() as Record<string, unknown>;
 
-    await db.updateSupplierBill(billId, body as never);
+    localDb.updateSupplierBill(billId, body as never);
 
     return HttpResponse.json({ success: true, message: "Bill updated successfully" });
   }),
@@ -225,7 +327,7 @@ export const handlers = [
     const url = new URL(request.url);
     const partyId = url.searchParams.get("partyId");
     const partyType = url.searchParams.get("partyType");
-    let payments = await db.getPayments(tenant);
+    let payments = localDb.getPayments();
     if (partyId) payments = payments.filter((p) => p.partyId === partyId);
     if (partyType) payments = payments.filter((p) => p.partyType === partyType);
     return HttpResponse.json(payments);
@@ -240,17 +342,17 @@ export const handlers = [
       createdAt: new Date().toISOString(),
       ...body,
     };
-    await db.addPayment(payment as never);
+    localDb.addPayment(payment as never);
 
     // Update invoice paidAmount + paymentStatus
     const invoiceId = body.invoiceId as string | undefined;
     const amount = body.amount as number | undefined;
     if (invoiceId && amount != null) {
-      const invoices = await db.getInvoices(tenant);
+      const invoices = localDb.getInvoices();
       const inv = invoices.find((i) => i.id === invoiceId);
       if (inv) {
         const newPaid = (inv.paidAmount ?? 0) + amount;
-        await db.updateInvoice(invoiceId, {
+        localDb.updateInvoice(invoiceId, {
           paidAmount: newPaid,
           paymentStatus:
             newPaid >= inv.grandTotal ? "paid"
@@ -266,7 +368,7 @@ export const handlers = [
   // ── Auth ──────────────────────────────────────────────────────────────────
   http.post(`${BASE}/auth/login`, async ({ request }) => {
     const body = await request.json() as { email: string; password: string };
-    const user = await db.getUserByEmailAnyTenant(body.email ?? "");
+    const user = localDb.getUserByEmailAnyTenant(body.email ?? "");
     if (!user) {
       return HttpResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
@@ -281,7 +383,7 @@ export const handlers = [
   // ── Users (admin) ─────────────────────────────────────────────────────────
   http.get(`${BASE}/:tenant/users`, async ({ params }) => {
     const tenant = params.tenant as string;
-    const users = await db.getUsers(tenant);
+    const users = localDb.getUsers();
     return HttpResponse.json(users.map(({ passwordHash: _ph, ...u }) => u));
   }),
 
@@ -298,7 +400,7 @@ export const handlers = [
       role: body.role ?? "viewer",
       createdAt: new Date().toISOString(),
     };
-    await db.addUser(newUser as never);
+    localDb.addUser(newUser as never);
     const { passwordHash: _ph, ...safeUser } = newUser;
     return HttpResponse.json(safeUser, { status: 201 });
   }),
@@ -310,27 +412,27 @@ export const handlers = [
     if (body.name) updates.name = body.name;
     if (body.role) updates.role = body.role;
     if (body.password) updates.passwordHash = await bcrypt.hash(body.password, 10);
-    await db.updateUser(id, updates as never);
+    localDb.updateUser(id, updates as never);
     return HttpResponse.json({ success: true });
   }),
 
   http.delete(`${BASE}/:tenant/users/:id`, async ({ params }) => {
     const id = params.id as string;
-    await db.deleteUser(id);
+    localDb.deleteUser(id);
     return HttpResponse.json({ success: true });
   }),
 
   // ── Tenant Settings ───────────────────────────────────────────────────────
   http.get(`${BASE}/:tenant/settings`, async ({ params }) => {
     const tenant = params.tenant as string;
-    const settings = await db.getSettings(tenant);
+    const settings = localDb.getSettings(tenant);
     return HttpResponse.json(settings);
   }),
 
   http.put(`${BASE}/:tenant/settings`, async ({ request, params }) => {
     const tenant = params.tenant as string;
     const body = await request.json() as BusinessSettings;
-    await db.saveSettings(tenant, body);
+    localDb.saveSettings(tenant, body);
     return HttpResponse.json({ success: true });
   }),
 ];

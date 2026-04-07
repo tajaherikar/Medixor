@@ -4,6 +4,7 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { SupplierBill } from "@/lib/types";
+import { fetchSupplierBills } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +29,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { SupplierBillForm } from "@/components/supplier-bill-form/supplier-bill-form";
+import { usePagination } from "@/lib/hooks/usePagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 
 interface PurchaseRegisterProps { tenant: string; }
 
@@ -59,13 +62,21 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   const [payRef, setPayRef] = useState("");
 
   const queryClient = useQueryClient();
+  const pagination = usePagination(20); // 20 items per page
 
   const { data: bills = [], isLoading } = useQuery<SupplierBill[]>({
     queryKey: ["supplier-bills", tenant],
-    queryFn: () => fetch(`/api/${tenant}/supplier-bills`).then((r) => r.json()),
+    queryFn: () => fetchSupplierBills(tenant),
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
+
+  // Paginate bills on client side
+  const paginatedBills = bills.slice(
+    pagination.pageIndex * pagination.pageSize,
+    (pagination.pageIndex + 1) * pagination.pageSize
+  );
+  const totalPages = Math.ceil(bills.length / pagination.pageSize);
 
   const payMutation = useMutation({
     mutationFn: async () => {
@@ -93,9 +104,9 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
     },
   });
 
-  const totalPurchase = bills.reduce((s, b) => s + b.grandTotal, 0);
-  const totalGst      = bills.reduce((s, b) => s + b.totalGst, 0);
-  const totalPaid     = bills.reduce((s, b) => s + b.paidAmount, 0);
+  const totalPurchase = bills.reduce((s: number, b: SupplierBill) => s + b.grandTotal, 0);
+  const totalGst      = bills.reduce((s: number, b: SupplierBill) => s + b.totalGst, 0);
+  const totalPaid     = bills.reduce((s: number, b: SupplierBill) => s + b.paidAmount, 0);
   const totalDue      = totalPurchase - totalPaid;
 
   return (
@@ -151,7 +162,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bills.map((bill) => {
+                {paginatedBills.map((bill: SupplierBill) => {
                   const balance = bill.grandTotal - bill.paidAmount;
                   const isExpanded = expandedId === bill.id;
                   return (
@@ -261,6 +272,20 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
             </Table>
           )}
         </CardContent>
+        {bills.length > 0 && (
+          <div className="px-6 py-4 border-t">
+            <PaginationControls
+              currentPage={pagination.pageIndex}
+              totalPages={totalPages}
+              hasNextPage={pagination.pageIndex < totalPages - 1}
+              hasPreviousPage={pagination.pageIndex > 0}
+              pageSize={pagination.pageSize}
+              total={bills.length}
+              onNextPage={pagination.nextPage}
+              onPreviousPage={pagination.previousPage}
+            />
+          </div>
+        )}
       </Card>
 
       {/* Pay Dialog */}
