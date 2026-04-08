@@ -153,12 +153,13 @@ create table if not exists users (
   name             text not null,
   email            text not null,
   "passwordHash"   text not null,
-  role             text not null default 'viewer',
+  role             text not null default 'member',
+  permissions      jsonb,
   "createdAt"      timestamptz not null default now()
 );
 create unique index if not exists users_email_tenant_idx on users (email, "tenantId");
 create index if not exists users_tenantId_idx on users ("tenantId");
-
+alter table users add column if not exists permissions jsonb;
 -- ─── tenant_settings ──────────────────────────────────────────────────────────
 -- One row per tenant. Upsert on save. logoBase64 stored as text (data URI).
 create table if not exists tenant_settings (

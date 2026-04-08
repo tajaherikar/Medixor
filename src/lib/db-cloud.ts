@@ -147,12 +147,17 @@ export async function addPayment(p: Payment): Promise<void> {
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getUsers(tenantId: string): Promise<AppUser[]> {
+  console.log("[db-cloud] getUsers for tenant:", tenantId);
   const { data, error } = await supabase
     .from("users")
     .select("*")
     .eq("tenantId", tenantId)
-    .order("createdAt", { ascending: true });
-  if (error) throw error;
+    .order("createdAt", { ascending: false });
+  if (error) {
+    console.error("[db-cloud] getUsers error:", error);
+    throw error;
+  }
+  console.log("[db-cloud] getUsers returned:", data?.length ?? 0, "rows");
   return data as AppUser[];
 }
 
@@ -201,8 +206,13 @@ export async function upsertSettings(tenantId: string, settings: BusinessSetting
 }
 
 export async function addUser(u: AppUser): Promise<void> {
+  console.log("[db-cloud] addUser called:", { id: u.id, name: u.name, email: u.email, tenantId: u.tenantId });
   const { error } = await supabase.from("users").insert(u);
-  if (error) throw error;
+  if (error) {
+    console.error("[db-cloud] addUser error:", error);
+    throw error;
+  }
+  console.log("[db-cloud] addUser succeeded for user:", u.id);
 }
 
 export async function updateUser(id: string, updates: Partial<Omit<AppUser, "id">>): Promise<void> {

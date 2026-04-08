@@ -70,7 +70,9 @@ export type UnitType =
 
 // ─── App User ────────────────────────────────────────────────────────────────
 
-export type UserRole = "admin" | "viewer";
+export type AccessPage = "suppliers" | "customers" | "doctors" | "payments" | "reports";
+
+export type UserRole = "admin" | "member" | "custom" | "viewer";
 
 export interface AppUser {
   id: string;
@@ -79,6 +81,7 @@ export interface AppUser {
   email: string;
   passwordHash: string;
   role: UserRole;
+  permissions?: AccessPage[];
   createdAt: string;
 }
 

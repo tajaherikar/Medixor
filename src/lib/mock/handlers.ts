@@ -389,7 +389,7 @@ export const handlers = [
 
   http.post(`${BASE}/:tenant/users`, async ({ request, params }) => {
     const tenant = params.tenant as string;
-    const body = await request.json() as { name: string; email: string; password: string; role: string };
+    const body = await request.json() as { name: string; email: string; password: string; role: string; permissions?: string[] };
     const passwordHash = await bcrypt.hash(body.password, 10);
     const newUser = {
       id: `usr-${Date.now()}`,
@@ -397,7 +397,10 @@ export const handlers = [
       name: body.name,
       email: body.email.toLowerCase(),
       passwordHash,
-      role: body.role ?? "viewer",
+      role: body.role ?? "member",
+      permissions: body.permissions?.filter((p) =>
+        ["suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+      ),
       createdAt: new Date().toISOString(),
     };
     localDb.addUser(newUser as never);
@@ -407,10 +410,15 @@ export const handlers = [
 
   http.patch(`${BASE}/:tenant/users/:id`, async ({ request, params }) => {
     const id = params.id as string;
-    const body = await request.json() as { name?: string; role?: string; password?: string };
+    const body = await request.json() as { name?: string; role?: string; password?: string; permissions?: string[] };
     const updates: Record<string, unknown> = {};
     if (body.name) updates.name = body.name;
     if (body.role) updates.role = body.role;
+    if (body.permissions) {
+      updates.permissions = body.permissions.filter((p) =>
+        ["suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+      );
+    }
     if (body.password) updates.passwordHash = await bcrypt.hash(body.password, 10);
     localDb.updateUser(id, updates as never);
     return HttpResponse.json({ success: true });

@@ -13,8 +13,18 @@ export async function GET(
   const authResult = await validateTenantAccess(req, tenant);
   if (authResult instanceof NextResponse) return authResult;
   
-  const users = await db.getUsers(tenant);
-  return NextResponse.json(users.map(({ passwordHash: _ph, ...u }) => u));
+  try {
+    console.log("[Users GET] Fetching users for tenant:", tenant);
+    const users = await db.getUsers(tenant);
+    console.log("[Users GET] Found users:", users.length);
+    return NextResponse.json(users.map(({ passwordHash: _ph, ...u }) => u));
+  } catch (error) {
+    console.error("[Users GET] Error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(
@@ -25,18 +35,53 @@ export async function POST(
   const authResult = await validateTenantAccess(req, tenant);
   if (authResult instanceof NextResponse) return authResult;
   
-  const body = await req.json() as { name: string; email: string; password: string; role: string };
-  const passwordHash = await bcrypt.hash(body.password, 10);
-  const newUser = {
-    id: `usr-${Date.now()}`,
-    tenantId: tenant,
-    name: body.name,
-    email: body.email.toLowerCase(),
-    passwordHash,
-    role: body.role ?? "viewer",
-    createdAt: new Date().toISOString(),
-  };
-  await db.addUser(newUser as never);
-  const { passwordHash: _ph, ...safeUser } = newUser;
-  return NextResponse.json(safeUser, { status: 201 });
+  try {
+    const body = await req.json() as {
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      permissions?: Array<string>;
+    };
+    
+    console.log("[Users POST] Creating user:", { name: body.name, email: body.email, role: body.role, tenant });
+    
+    const passwordHash = await bcrypt.hash(body.password, 10);
+    const permissions = body.permissions?.filter((p) =>
+      ["suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+    );
+    
+    const newUser = {
+      id: `usr-${Date.now()}`,
+      tenantId: tenant,
+      name: body.name,
+      email: body.email.toLowerCase(),
+      passwordHash,
+      role: body.role ?? "member",
+      permissions: permissions && permissions.length > 0 ? permissions : undefined,
+      createdAt: new Date().toISOString(),
+    };
+    
+    console.log("[Users POST] New user object:", { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role, permissions: newUser.permissions });
+    
+    try {
+      console.log("[Users POST] Calling db.addUser...");
+      await db.addUser(newUser as never);
+      console.log("[Users POST] db.addUser completed successfully");
+    } catch (dbError) {
+      console.error("[Users POST] db.addUser failed:", dbError);
+      throw dbError;
+    }
+    
+    const { passwordHash: _ph, ...safeUser } = newUser;
+    
+    console.log("[Users POST] User created successfully:", safeUser);
+    return NextResponse.json(safeUser, { status: 201 });
+  } catch (error) {
+    console.error("[Users POST] Error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
 }

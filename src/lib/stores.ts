@@ -4,7 +4,7 @@ import { BillingDraft, BusinessSettings, defaultBusinessSettings } from "@/lib/t
 
 // ─── Auth Store ───────────────────────────────────────────────────────────────
 
-export type AuthRole = "admin" | "viewer";
+export type AuthRole = "admin" | "member" | "custom" | "viewer";
 
 export interface AuthUser {
   id: string;
@@ -12,6 +12,7 @@ export interface AuthUser {
   email: string;
   tenantId: string;
   role: AuthRole;
+  permissions?: Array<"suppliers" | "customers" | "doctors" | "payments" | "reports">;
 }
 
 interface AuthState {
