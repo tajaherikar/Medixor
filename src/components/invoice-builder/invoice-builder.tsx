@@ -31,6 +31,7 @@ import { Trash2, Printer, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { InvoicePrintModal } from "@/components/reports/invoice-print-modal";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
+import { ValidationErrorAlert } from "@/components/ui/validation-error-alert";
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
 import { useAuthStore, useSettingsStore } from "@/lib/stores";
@@ -75,6 +76,11 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [paidAmount, setPaidAmount] = useState(0);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<{
+    discrepancies: string[];
+    expected?: Record<string, number>;
+    actual?: Record<string, number>;
+  } | null>(null);
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -202,6 +208,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     if (!isQuickBill && !customerId) return;
     
     setSaveError(null);
+    setValidationError(null);
     const payload = {
       tenantId: tenant,
       customerId: isQuickBill ? "" : customerId,
@@ -242,8 +249,19 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = (err as { error?: string }).error ?? `Save failed (${res.status}). Please try again.`;
-      setSaveError(msg);
-      toast.error("Failed to save invoice", { description: msg });
+      
+      // Check if this is a validation error
+      if (err.discrepancies && Array.isArray(err.discrepancies)) {
+        setValidationError({
+          discrepancies: err.discrepancies,
+          expected: err.expected,
+          actual: err.actual,
+        });
+        toast.error("Invoice validation failed", { description: "Please review the errors below." });
+      } else {
+        setSaveError(msg);
+        toast.error("Failed to save invoice", { description: msg });
+      }
       return;
     }
     // Invalidate caches so Reports and Inventory reflect changes immediately
@@ -711,6 +729,14 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       </div>
       {saveError && (
         <p className="text-sm text-destructive">{saveError}</p>
+      )}
+      {validationError && (
+        <ValidationErrorAlert 
+          title="Invoice Validation Failed"
+          discrepancies={validationError.discrepancies}
+          expected={validationError.expected}
+          actual={validationError.actual}
+        />
       )}
       <UnsavedChangesModal
         open={showUnsavedModal}
