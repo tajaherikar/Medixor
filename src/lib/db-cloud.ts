@@ -158,7 +158,11 @@ export async function getUsers(tenantId: string): Promise<AppUser[]> {
     throw error;
   }
   console.log("[db-cloud] getUsers returned:", data?.length ?? 0, "rows");
-  return data as AppUser[];
+  // Add permissions based on role since they're not stored in the database
+  return (data as Omit<AppUser, "permissions">[] | null)?.map((user) => ({
+    ...user,
+    permissions: user.role === "member" ? ["billing", "inventory"] : undefined,
+  })) ?? [];
 }
 
 export async function getUserByEmail(email: string, tenantId: string): Promise<AppUser | null> {
@@ -169,7 +173,12 @@ export async function getUserByEmail(email: string, tenantId: string): Promise<A
     .eq("tenantId", tenantId)
     .maybeSingle();
   if (error) throw error;
-  return data as AppUser | null;
+  if (!data) return null;
+  // Add permissions based on role since they're not stored in the database
+  return {
+    ...data,
+    permissions: data.role === "member" ? ["billing", "inventory"] : undefined,
+  } as AppUser;
 }
 
 export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | null> {
@@ -179,7 +188,12 @@ export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | 
     .eq("email", email.toLowerCase())
     .maybeSingle();
   if (error) throw error;
-  return data as AppUser | null;
+  if (!data) return null;
+  // Add permissions based on role since they're not stored in the database
+  return {
+    ...data,
+    permissions: data.role === "member" ? ["billing", "inventory"] : undefined,
+  } as AppUser;
 }
 
 // ─── Tenant Settings ──────────────────────────────────────────────────────────
@@ -207,7 +221,9 @@ export async function upsertSettings(tenantId: string, settings: BusinessSetting
 
 export async function addUser(u: AppUser): Promise<void> {
   console.log("[db-cloud] addUser called:", { id: u.id, name: u.name, email: u.email, tenantId: u.tenantId });
-  const { error } = await supabase.from("users").insert(u);
+  // Only insert fields that exist in the database schema (exclude permissions as it's not a column)
+  const { permissions: _p, ...userWithoutPermissions } = u;
+  const { error } = await supabase.from("users").insert(userWithoutPermissions);
   if (error) {
     console.error("[db-cloud] addUser error:", error);
     throw error;
@@ -216,7 +232,9 @@ export async function addUser(u: AppUser): Promise<void> {
 }
 
 export async function updateUser(id: string, updates: Partial<Omit<AppUser, "id">>): Promise<void> {
-  const { error } = await supabase.from("users").update(updates).eq("id", id);
+  // Exclude permissions as it's not a database column
+  const { permissions: _p, ...updatesWithoutPermissions } = updates;
+  const { error } = await supabase.from("users").update(updatesWithoutPermissions).eq("id", id);
   if (error) throw error;
 }
 

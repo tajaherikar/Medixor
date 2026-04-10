@@ -391,6 +391,17 @@ export const handlers = [
     const tenant = params.tenant as string;
     const body = await request.json() as { name: string; email: string; password: string; role: string; permissions?: string[] };
     const passwordHash = await bcrypt.hash(body.password, 10);
+    
+    // Set default permissions for member role
+    let permissions = body.permissions?.filter((p) =>
+      ["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+    );
+    
+    // Members get default access to billing and inventory
+    if ((body.role ?? "member") === "member" && (!permissions || permissions.length === 0)) {
+      permissions = ["billing", "inventory"];
+    }
+    
     const newUser = {
       id: `usr-${Date.now()}`,
       tenantId: tenant,
@@ -398,9 +409,7 @@ export const handlers = [
       email: body.email.toLowerCase(),
       passwordHash,
       role: body.role ?? "member",
-      permissions: body.permissions?.filter((p) =>
-        ["suppliers", "customers", "doctors", "payments", "reports"].includes(p)
-      ),
+      permissions,
       createdAt: new Date().toISOString(),
     };
     localDb.addUser(newUser as never);
@@ -414,10 +423,16 @@ export const handlers = [
     const updates: Record<string, unknown> = {};
     if (body.name) updates.name = body.name;
     if (body.role) updates.role = body.role;
-    if (body.permissions) {
-      updates.permissions = body.permissions.filter((p) =>
-        ["suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+    if (body.permissions !== undefined) {
+      const permissions = body.permissions.filter((p) =>
+        ["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
       );
+      // Members get default access to billing and inventory
+      if ((body.role ?? "member") === "member" && permissions.length === 0) {
+        updates.permissions = ["billing", "inventory"];
+      } else {
+        updates.permissions = permissions;
+      }
     }
     if (body.password) updates.passwordHash = await bcrypt.hash(body.password, 10);
     localDb.updateUser(id, updates as never);

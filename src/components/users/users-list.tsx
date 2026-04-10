@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,25 +37,29 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/lib/stores";
 import { format, parseISO } from "date-fns";
 
+const defaultMemberPermissions: AccessPage[] = ["billing", "inventory"];
+
 const accessOptions = [
-  { value: "suppliers", label: "Suppliers" },
-  { value: "customers", label: "Customers" },
-  { value: "doctors", label: "Doctors" },
-  { value: "payments", label: "Payments" },
-  { value: "reports", label: "Reports" },
-] as const;
+  { value: "billing" as const, label: "Billing", isDefault: true as const },
+  { value: "inventory" as const, label: "Inventory", isDefault: true as const },
+  { value: "suppliers" as const, label: "Suppliers", isDefault: false as const },
+  { value: "customers" as const, label: "Customers", isDefault: false as const },
+  { value: "doctors" as const, label: "Doctors", isDefault: false as const },
+  { value: "payments" as const, label: "Payments", isDefault: false as const },
+  { value: "reports" as const, label: "Reports", isDefault: false as const },
+];
 
 const createUserSchema = z.object({
   name:        z.string().min(1, "Name required"),
   email:       z.string().email("Enter a valid email"),
   password:    z.string().min(6, "Password must be at least 6 characters"),
-  role:        z.enum(["admin", "member", "custom", "viewer"]),
-  permissions: z.array(z.enum(["suppliers", "customers", "doctors", "payments", "reports"])).optional(),
+  role:        z.enum(["admin", "member"]),
+  permissions: z.array(z.enum(["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"])).optional(),
 });
 
 const editUserSchema = z.object({
-  role:        z.enum(["admin", "member", "custom", "viewer"]),
-  permissions: z.array(z.enum(["suppliers", "customers", "doctors", "payments", "reports"])).optional(),
+  role:        z.enum(["admin", "member"]),
+  permissions: z.array(z.enum(["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"])).optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -85,22 +89,6 @@ function RoleBadge({ role }: { role: string }) {
     return (
       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-primary/10 text-primary border border-primary/20">
         <ShieldCheck className="h-3 w-3" /> Admin
-      </span>
-    );
-  }
-
-  if (role === "custom") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700 border border-amber-200">
-        <ShieldCheck className="h-3 w-3" /> Custom Member
-      </span>
-    );
-  }
-
-  if (role === "viewer") {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground border border-border">
-        <Eye className="h-3 w-3" /> Viewer
       </span>
     );
   }
@@ -153,6 +141,20 @@ export function UsersList({ tenant }: UsersListProps) {
   const createRoleValue = createWatch("role");
   const createPermissionsValue = createWatch("permissions") as AccessPage[] | undefined;
 
+  // Update permissions when role changes
+  useEffect(() => {
+    console.log("[UsersList] Create role changed to:", createRoleValue, "current permissions:", createPermissionsValue);
+    if (createRoleValue === "member") {
+      // Set default member permissions
+      console.log("[UsersList] Setting member default permissions to:", defaultMemberPermissions);
+      createSetValue("permissions", defaultMemberPermissions);
+    } else if (createRoleValue === "admin") {
+      // Clear permissions for admin (they have full access)
+      console.log("[UsersList] Clearing permissions for admin");
+      createSetValue("permissions", undefined);
+    }
+  }, [createRoleValue, createSetValue]);
+
   const editForm = useForm<EditUserFormValues>({
     resolver: zodResolver(editUserSchema),
     defaultValues: { role: "member", permissions: [] },
@@ -170,6 +172,19 @@ export function UsersList({ tenant }: UsersListProps) {
 
   const editRoleValue = editWatch("role");
   const editPermissionsValue = editWatch("permissions") as AccessPage[] | undefined;
+
+  // Update permissions when edit role changes
+  useEffect(() => {
+    if (editRoleValue === "member") {
+      // Set default member permissions (or keep current if editing)
+      if (!editPermissionsValue || editPermissionsValue.length === 0) {
+        editSetValue("permissions", defaultMemberPermissions);
+      }
+    } else if (editRoleValue === "admin") {
+      // Clear permissions for admin (they have full access)
+      editSetValue("permissions", undefined);
+    }
+  }, [editRoleValue, editSetValue, editPermissionsValue]);
 
   const resetForm = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -203,12 +218,22 @@ export function UsersList({ tenant }: UsersListProps) {
       return result;
     },
     onSuccess: async (result) => {
-      console.log("[UsersList] onSuccess called, invalidating query");
-      queryClient.setQueryData<SafeUser[] | undefined>(["users", tenant], (current) =>
-        current ? [...current, result] : [result]
-      );
+      console.log("[UsersList] onSuccess called with result:", result);
+      console.log("[UsersList] Current cache before update:", queryClient.getQueryData(["users", tenant]));
+      
+      queryClient.setQueryData<SafeUser[] | undefined>(["users", tenant], (current) => {
+        const updated = current ? [...current, result] : [result];
+        console.log("[UsersList] Updated cache with new user, new total:", updated.length);
+        return updated;
+      });
+      
+      console.log("[UsersList] Cache after update:", queryClient.getQueryData(["users", tenant]));
+      console.log("[UsersList] Invalidating query and refetching...");
+      
       await queryClient.invalidateQueries({ queryKey: ["users", tenant] });
       await refetch();
+      
+      console.log("[UsersList] Refetch completed, cache after refetch:", queryClient.getQueryData(["users", tenant]));
       console.log("[UsersList] Refetch completed after create");
       setDialogOpen(false);
       setShowCreatePassword(false);
@@ -294,7 +319,11 @@ export function UsersList({ tenant }: UsersListProps) {
   });
 
   function onCreateSubmit(values: CreateUserFormValues) {
-    console.log("[UsersList] Create form submitted with values:", values);
+    console.log("[UsersList] Create form submitted with values:", {
+      ...values,
+      permissionsCount: values.permissions?.length ?? 0,
+      permissionsDetails: values.permissions,
+    });
     addMutation.mutate(values);
   }
 
@@ -464,23 +493,22 @@ export function UsersList({ tenant }: UsersListProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="custom">Custom Member</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
 
-              {createRoleValue === "custom" && (
+              {createRoleValue === "member" && (
                 <Controller
                   control={createControl}
                   name="permissions"
-                  defaultValue={[]}
+                  defaultValue={defaultMemberPermissions}
                   render={({ field }) => (
                     <div className="space-y-2 rounded-lg border border-border p-4 bg-muted/50">
-                      <p className="text-sm font-medium">Custom page access</p>
-                      <p className="text-xs text-muted-foreground">Select additional pages this member can access.</p>
+                      <p className="text-sm font-medium">Module access</p>
+                      <p className="text-xs text-muted-foreground">Members have Billing and Inventory by default. Select additional modules.</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                        {accessOptions.map(({ value, label }) => {
-                          const checked = field.value?.includes(value) ?? false;
+                        {accessOptions.map(({ value, label, isDefault }) => {
+                          const checked = field.value?.includes(value) ?? (isDefault ?? false);
                           return (
                             <label
                               key={value}
@@ -491,15 +519,16 @@ export function UsersList({ tenant }: UsersListProps) {
                                 value={value}
                                 checked={checked}
                                 onChange={() => {
-                                  const current = field.value ?? [];
+                                  const current = field.value ?? defaultMemberPermissions;
                                   const next = current.includes(value)
                                     ? current.filter((p) => p !== value)
                                     : [...current, value];
                                   field.onChange(next);
                                 }}
-                                className="h-4 w-4 rounded border border-border text-primary focus:ring-primary"
+                                className={`h-4 w-4 rounded border border-border text-primary focus:ring-primary ${isDefault ? "cursor-not-allowed opacity-70" : ""}`}
+                                disabled={isDefault}
                               />
-                              <span>{label}</span>
+                              <span>{label}{isDefault ? " (default)" : ""}</span>
                             </label>
                           );
                         })}
@@ -548,24 +577,23 @@ export function UsersList({ tenant }: UsersListProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="custom">Custom Member</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {editRoleValue === "custom" && (
+            {editRoleValue === "member" && (
               <Controller
                 control={editControl}
                 name="permissions"
-                defaultValue={[]}
+                defaultValue={editUser?.permissions ?? defaultMemberPermissions}
                 render={({ field }) => (
                   <div className="space-y-2 rounded-lg border border-border p-4 bg-muted/50">
-                    <p className="text-sm font-medium">Custom page access</p>
-                    <p className="text-xs text-muted-foreground">Select additional pages this member can access.</p>
+                    <p className="text-sm font-medium">Module access</p>
+                    <p className="text-xs text-muted-foreground">Members have Billing and Inventory by default. Select additional modules.</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                      {accessOptions.map(({ value, label }) => {
-                        const checked = field.value?.includes(value) ?? false;
+                      {accessOptions.map(({ value, label, isDefault }) => {
+                        const checked = field.value?.includes(value) ?? (isDefault ?? false);
                         return (
                           <label
                             key={value}
@@ -576,15 +604,16 @@ export function UsersList({ tenant }: UsersListProps) {
                               value={value}
                               checked={checked}
                               onChange={() => {
-                                const current = field.value ?? [];
+                                const current = field.value ?? defaultMemberPermissions;
                                 const next = current.includes(value)
                                   ? current.filter((p) => p !== value)
                                   : [...current, value];
                                 field.onChange(next);
                               }}
                               className="h-4 w-4 rounded border border-border text-primary focus:ring-primary"
+                              disabled={isDefault}
                             />
-                            <span>{label}</span>
+                            <span>{label}{isDefault ? " (default)" : ""}</span>
                           </label>
                         );
                       })}

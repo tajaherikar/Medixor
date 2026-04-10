@@ -12,8 +12,8 @@ export interface AuthSession {
   userId: string;
   email: string;
   tenantId: string;
-  role: "admin" | "member" | "custom" | "viewer";
-  permissions?: Array<"suppliers" | "customers" | "doctors" | "payments" | "reports">;
+  role: "admin" | "member";
+  permissions?: Array<"billing" | "inventory" | "suppliers" | "customers" | "doctors" | "payments" | "reports">;
 }
 
 /**

@@ -47,9 +47,16 @@ export async function POST(
     console.log("[Users POST] Creating user:", { name: body.name, email: body.email, role: body.role, tenant });
     
     const passwordHash = await bcrypt.hash(body.password, 10);
-    const permissions = body.permissions?.filter((p) =>
-      ["suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+    
+    // Set default permissions for member role
+    let permissions = body.permissions?.filter((p) =>
+      ["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
     );
+    
+    // Members get default access to billing and inventory
+    if ((body.role ?? "member") === "member" && (!permissions || permissions.length === 0)) {
+      permissions = ["billing", "inventory"];
+    }
     
     const newUser = {
       id: `usr-${Date.now()}`,

@@ -53,7 +53,7 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
     ? navItems
     : navItems.filter((item) =>
         allowedDefault.includes(item.href) ||
-        (user?.role === "custom" && customAllowed.includes(item.href as typeof customAllowed[number]))
+        (user?.role === "member" && customAllowed.includes(item.href as typeof customAllowed[number]))
       );
 
   const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : filteredNavItems;

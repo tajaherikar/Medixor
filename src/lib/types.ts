@@ -70,9 +70,9 @@ export type UnitType =
 
 // ─── App User ────────────────────────────────────────────────────────────────
 
-export type AccessPage = "suppliers" | "customers" | "doctors" | "payments" | "reports";
+export type AccessPage = "billing" | "inventory" | "suppliers" | "customers" | "doctors" | "payments" | "reports";
 
-export type UserRole = "admin" | "member" | "custom" | "viewer";
+export type UserRole = "admin" | "member";
 
 export interface AppUser {
   id: string;

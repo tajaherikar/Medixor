@@ -23,10 +23,16 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   if (body.name) updates.name = body.name;
   if (body.role) updates.role = body.role;
-  if (body.permissions) {
-    updates.permissions = body.permissions.filter((p) =>
-      ["suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+  if (body.permissions !== undefined) {
+    const permissions = body.permissions.filter((p) =>
+      ["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
     );
+    // Members get default access to billing and inventory
+    if ((body.role ?? "member") === "member" && permissions.length === 0) {
+      updates.permissions = ["billing", "inventory"];
+    } else {
+      updates.permissions = permissions;
+    }
   }
   if (body.password) updates.passwordHash = await bcrypt.hash(body.password, 10);
   await db.updateUser(id, updates as never);

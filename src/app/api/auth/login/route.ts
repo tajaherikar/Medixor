@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: user.email,
       tenantId: user.tenantId,
-      role: user.role as "admin" | "member" | "custom" | "viewer",
+      role: user.role as "admin" | "member",
       permissions: user.permissions,
     };
     

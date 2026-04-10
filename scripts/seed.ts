@@ -168,7 +168,7 @@ async function main() {
   const users = [
     // ── demo tenant (pre-loaded with sample data) ──────────────────────────
     { id: "usr-1", tenantId: "demo",  name: "Admin User",    email: "admin@medixor.com", passwordHash: adminHash,  role: "admin",  createdAt: "2025-01-01T00:00:00Z" },
-    { id: "usr-2", tenantId: "demo",  name: "Demo User",     email: "demo@medixor.com",  passwordHash: viewerHash, role: "viewer", createdAt: "2025-01-01T00:00:00Z" },
+    { id: "usr-2", tenantId: "demo",  name: "Demo User",     email: "demo@medixor.com",  passwordHash: viewerHash, role: "member", createdAt: "2025-01-01T00:00:00Z" },
     // ── fresh tenant (blank account — no demo data) ────────────────────────
     { id: "usr-3", tenantId: "fresh", name: "Account Owner", email: "admin@fresh.com",   passwordHash: freshHash,  role: "admin",  createdAt: "2025-01-01T00:00:00Z" },
   ];
