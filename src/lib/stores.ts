@@ -12,7 +12,7 @@ export interface AuthUser {
   email: string;
   tenantId: string;
   role: AuthRole;
-  permissions?: Array<"billing" | "inventory" | "suppliers" | "customers" | "doctors" | "payments" | "reports">;
+  permissions?: Array<"billing" | "inventory" | "dashboard" | "suppliers" | "customers" | "doctors" | "payments" | "reports">;
 }
 
 interface AuthState {

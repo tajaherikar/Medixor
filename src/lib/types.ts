@@ -70,7 +70,7 @@ export type UnitType =
 
 // ─── App User ────────────────────────────────────────────────────────────────
 
-export type AccessPage = "billing" | "inventory" | "suppliers" | "customers" | "doctors" | "payments" | "reports";
+export type AccessPage = "billing" | "inventory" | "dashboard" | "suppliers" | "customers" | "doctors" | "payments" | "reports";
 
 export type UserRole = "admin" | "member";
 

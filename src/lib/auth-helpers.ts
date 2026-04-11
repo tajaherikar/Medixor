@@ -13,7 +13,7 @@ export interface AuthSession {
   email: string;
   tenantId: string;
   role: "admin" | "member";
-  permissions?: Array<"billing" | "inventory" | "suppliers" | "customers" | "doctors" | "payments" | "reports">;
+  permissions?: Array<"billing" | "inventory" | "dashboard" | "suppliers" | "customers" | "doctors" | "payments" | "reports">;
 }
 
 /**

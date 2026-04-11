@@ -42,6 +42,7 @@ const defaultMemberPermissions: AccessPage[] = ["billing", "inventory"];
 const accessOptions = [
   { value: "billing" as const, label: "Billing", isDefault: true as const },
   { value: "inventory" as const, label: "Inventory", isDefault: true as const },
+  { value: "dashboard" as const, label: "Dashboard", isDefault: false as const },
   { value: "suppliers" as const, label: "Suppliers", isDefault: false as const },
   { value: "customers" as const, label: "Customers", isDefault: false as const },
   { value: "doctors" as const, label: "Doctors", isDefault: false as const },
@@ -54,12 +55,12 @@ const createUserSchema = z.object({
   email:       z.string().email("Enter a valid email"),
   password:    z.string().min(6, "Password must be at least 6 characters"),
   role:        z.enum(["admin", "member"]),
-  permissions: z.array(z.enum(["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"])).optional(),
+  permissions: z.array(z.enum(["billing", "inventory", "dashboard", "suppliers", "customers", "doctors", "payments", "reports"])).optional(),
 });
 
 const editUserSchema = z.object({
   role:        z.enum(["admin", "member"]),
-  permissions: z.array(z.enum(["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"])).optional(),
+  permissions: z.array(z.enum(["billing", "inventory", "dashboard", "suppliers", "customers", "doctors", "payments", "reports"])).optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -108,6 +109,7 @@ export function UsersList({ tenant }: UsersListProps) {
   const [passwordResetUser, setPasswordResetUser] = useState<SafeUser | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isLoadingEditUser, setIsLoadingEditUser] = useState(false);
   const { user: currentUser } = useAuthStore();
   const isAdmin = currentUser?.role === "admin";
   const queryClient = useQueryClient();
@@ -173,10 +175,12 @@ export function UsersList({ tenant }: UsersListProps) {
   const editRoleValue = editWatch("role");
   const editPermissionsValue = editWatch("permissions") as AccessPage[] | undefined;
 
-  // Update permissions when edit role changes
+  // Update permissions when edit role changes (but not when loading user data)
   useEffect(() => {
+    if (isLoadingEditUser) return; // Skip while loading user data
+    
     if (editRoleValue === "member") {
-      // Set default member permissions (or keep current if editing)
+      // Set default member permissions only if none are set
       if (!editPermissionsValue || editPermissionsValue.length === 0) {
         editSetValue("permissions", defaultMemberPermissions);
       }
@@ -184,7 +188,7 @@ export function UsersList({ tenant }: UsersListProps) {
       // Clear permissions for admin (they have full access)
       editSetValue("permissions", undefined);
     }
-  }, [editRoleValue, editSetValue, editPermissionsValue]);
+  }, [editRoleValue, editSetValue, editPermissionsValue, isLoadingEditUser]);
 
   const resetForm = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -340,7 +344,10 @@ export function UsersList({ tenant }: UsersListProps) {
 
   function openEditDialog(user: SafeUser) {
     setEditUser(user);
+    setIsLoadingEditUser(true);
     editReset({ role: user.role, permissions: user.permissions ?? [] });
+    // Allow form to initialize before useEffect runs
+    setTimeout(() => setIsLoadingEditUser(false), 0);
     setEditDialogOpen(true);
   }
 
@@ -496,8 +503,14 @@ export function UsersList({ tenant }: UsersListProps) {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
+              {createRoleValue === "admin" && (
+                <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-3 py-2 mt-2">
+                  ℹ️ Admins have full access to all modules and features.
+                </p>
+              )}
+            </div>
 
-              {createRoleValue === "member" && (
+            {createRoleValue === "member" && (
                 <Controller
                   control={createControl}
                   name="permissions"
@@ -537,7 +550,6 @@ export function UsersList({ tenant }: UsersListProps) {
                   )}
                 />
               )}
-            </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={addMutation.isPending}>
@@ -580,6 +592,11 @@ export function UsersList({ tenant }: UsersListProps) {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
+              {editRoleValue === "admin" && (
+                <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-3 py-2 mt-2">
+                  ℹ️ Admins have full access to all modules and features.
+                </p>
+              )}
             </div>
 
             {editRoleValue === "member" && (

@@ -158,10 +158,10 @@ export async function getUsers(tenantId: string): Promise<AppUser[]> {
     throw error;
   }
   console.log("[db-cloud] getUsers returned:", data?.length ?? 0, "rows");
-  // Add permissions based on role since they're not stored in the database
-  return (data as Omit<AppUser, "permissions">[] | null)?.map((user) => ({
+  // Return users with permissions from database or default based on role
+  return (data as any[] | null)?.map((user: any) => ({
     ...user,
-    permissions: user.role === "member" ? ["billing", "inventory"] : undefined,
+    permissions: user.permissions || (user.role === "member" ? ["billing", "inventory"] : undefined),
   })) ?? [];
 }
 
@@ -174,10 +174,10 @@ export async function getUserByEmail(email: string, tenantId: string): Promise<A
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  // Add permissions based on role since they're not stored in the database
+  // Include permissions from database or default based on role
   return {
     ...data,
-    permissions: data.role === "member" ? ["billing", "inventory"] : undefined,
+    permissions: data.permissions || (data.role === "member" ? ["billing", "inventory"] : undefined),
   } as AppUser;
 }
 
@@ -189,10 +189,10 @@ export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | 
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  // Add permissions based on role since they're not stored in the database
+  // Include permissions from database or default based on role
   return {
     ...data,
-    permissions: data.role === "member" ? ["billing", "inventory"] : undefined,
+    permissions: data.permissions || (data.role === "member" ? ["billing", "inventory"] : undefined),
   } as AppUser;
 }
 
@@ -220,10 +220,8 @@ export async function upsertSettings(tenantId: string, settings: BusinessSetting
 }
 
 export async function addUser(u: AppUser): Promise<void> {
-  console.log("[db-cloud] addUser called:", { id: u.id, name: u.name, email: u.email, tenantId: u.tenantId });
-  // Only insert fields that exist in the database schema (exclude permissions as it's not a column)
-  const { permissions: _p, ...userWithoutPermissions } = u;
-  const { error } = await supabase.from("users").insert(userWithoutPermissions);
+  console.log("[db-cloud] addUser called:", { id: u.id, name: u.name, email: u.email, tenantId: u.tenantId, permissions: u.permissions });
+  const { error } = await supabase.from("users").insert(u);
   if (error) {
     console.error("[db-cloud] addUser error:", error);
     throw error;
@@ -232,9 +230,8 @@ export async function addUser(u: AppUser): Promise<void> {
 }
 
 export async function updateUser(id: string, updates: Partial<Omit<AppUser, "id">>): Promise<void> {
-  // Exclude permissions as it's not a database column
-  const { permissions: _p, ...updatesWithoutPermissions } = updates;
-  const { error } = await supabase.from("users").update(updatesWithoutPermissions).eq("id", id);
+  console.log("[db-cloud] updateUser called:", { id, permissions: updates.permissions });
+  const { error } = await supabase.from("users").update(updates).eq("id", id);
   if (error) throw error;
 }
 
