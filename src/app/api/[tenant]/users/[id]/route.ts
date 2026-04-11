@@ -25,7 +25,7 @@ export async function PATCH(
   if (body.role) updates.role = body.role;
   if (body.permissions !== undefined) {
     const permissions = body.permissions.filter((p) =>
-      ["billing", "inventory", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+      ["billing", "inventory", "dashboard", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
     );
     // Members get default access to billing and inventory
     if ((body.role ?? "member") === "member" && permissions.length === 0) {
