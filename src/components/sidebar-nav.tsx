@@ -46,7 +46,7 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
   const logoBase64 = useSettingsStore((s) => s.settings.logoBase64);
   const isAdmin = user?.role === "admin";
 
-  const allowedDefault = ["dashboard", "inventory", "billing"];
+  const allowedDefault = ["billing", "inventory"];
   const customAllowed = user?.permissions ?? [];
 
   const filteredNavItems = isAdmin
