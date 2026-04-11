@@ -4,6 +4,11 @@
  * Seeds the Supabase database with demo data.
  * Run with: npx tsx scripts/seed.ts
  *
+ * IMPORTANT: Run database migrations FIRST before running this script!
+ * Migrations: supabase/migrations/003_normalize_user_roles.sql
+ * This adds the permissions column and normalizes user roles.
+ * See DATABASE_MIGRATIONS.md for detailed instructions.
+ *
  * Requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
  * to be set in .env.local (loaded automatically by dotenv below).
  */

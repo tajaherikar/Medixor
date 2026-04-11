@@ -117,10 +117,8 @@ export function UsersList({ tenant }: UsersListProps) {
   const { data: users = [], isLoading, refetch } = useQuery<SafeUser[]>({
     queryKey: ["users", tenant],
     queryFn: async () => {
-      console.log("[UsersList] Fetching users for tenant:", tenant);
       const response = await fetch(`/api/${tenant}/users`, { cache: "no-store" });
       const data = await response.json();
-      console.log("[UsersList] Fetched users:", data.map((u: SafeUser) => ({ id: u.id, role: u.role, name: u.name })));
       return data;
     },
   });
@@ -145,14 +143,11 @@ export function UsersList({ tenant }: UsersListProps) {
 
   // Update permissions when role changes
   useEffect(() => {
-    console.log("[UsersList] Create role changed to:", createRoleValue, "current permissions:", createPermissionsValue);
     if (createRoleValue === "member") {
       // Set default member permissions
-      console.log("[UsersList] Setting member default permissions to:", defaultMemberPermissions);
       createSetValue("permissions", defaultMemberPermissions);
     } else if (createRoleValue === "admin") {
       // Clear permissions for admin (they have full access)
-      console.log("[UsersList] Clearing permissions for admin");
       createSetValue("permissions", undefined);
     }
   }, [createRoleValue, createSetValue]);
@@ -204,43 +199,29 @@ export function UsersList({ tenant }: UsersListProps) {
 
   const addMutation = useMutation({
     mutationFn: async (data: CreateUserFormValues) => {
-      console.log("[UsersList] Creating user with data:", data);
       const response = await fetch(`/api/${tenant}/users`, {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      console.log("[UsersList] Response status:", response.status);
       if (!response.ok) {
         const error = await response.text();
-        console.error("[UsersList] Error response:", error);
         throw new Error(`Failed to create user: ${response.status} - ${error}`);
       }
       const result = await response.json();
-      console.log("[UsersList] User created successfully:", result);
       return result;
     },
     onSuccess: async (result) => {
-      console.log("[UsersList] onSuccess called with result:", result);
-      console.log("[UsersList] Current cache before update:", queryClient.getQueryData(["users", tenant]));
-      
       queryClient.setQueryData<SafeUser[] | undefined>(["users", tenant], (current) => {
         const updated = current ? [...current, result] : [result];
-        console.log("[UsersList] Updated cache with new user, new total:", updated.length);
         return updated;
       });
-      
-      console.log("[UsersList] Cache after update:", queryClient.getQueryData(["users", tenant]));
-      console.log("[UsersList] Invalidating query and refetching...");
       
       await queryClient.invalidateQueries({ queryKey: ["users", tenant] });
       await refetch();
       
-      console.log("[UsersList] Refetch completed, cache after refetch:", queryClient.getQueryData(["users", tenant]));
-      console.log("[UsersList] Refetch completed after create");
       setDialogOpen(false);
-      setShowCreatePassword(false);
       createReset();
     },
     onError: (error) => {
@@ -251,21 +232,17 @@ export function UsersList({ tenant }: UsersListProps) {
 
   const updateMutation = useMutation({
     mutationFn: async (data: { id: string; role: UserRole; permissions?: AccessPage[] }) => {
-      console.log("[UsersList] Sending update PATCH for user", data.id, { role: data.role, permissions: data.permissions });
       const response = await fetch(`/api/${tenant}/users/${data.id}`, {
         method: "PATCH",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: data.role, permissions: data.permissions }),
       });
-      console.log("[UsersList] Update PATCH response status:", response.status);
       if (!response.ok) {
         const error = await response.text();
-        console.error("[UsersList] Update PATCH error response:", error);
         throw new Error(`Failed to update user: ${response.status} - ${error}`);
       }
       const result = await response.json();
-      console.log("[UsersList] Update PATCH result:", result);
       return result;
     },
     onSuccess: async (_result, variables) => {
@@ -278,7 +255,6 @@ export function UsersList({ tenant }: UsersListProps) {
       );
       await queryClient.invalidateQueries({ queryKey: ["users", tenant] });
       await refetch();
-      console.log("[UsersList] Refetch completed after edit");
       setEditDialogOpen(false);
       setEditUser(null);
       editReset();
@@ -323,17 +299,11 @@ export function UsersList({ tenant }: UsersListProps) {
   });
 
   function onCreateSubmit(values: CreateUserFormValues) {
-    console.log("[UsersList] Create form submitted with values:", {
-      ...values,
-      permissionsCount: values.permissions?.length ?? 0,
-      permissionsDetails: values.permissions,
-    });
     addMutation.mutate(values);
   }
 
   function onEditSubmit(values: EditUserFormValues) {
     if (!editUser) return;
-    console.log("[UsersList] Editing user", editUser.id, "with", values);
     updateMutation.mutate({ id: editUser.id, role: values.role, permissions: values.permissions });
   }
 

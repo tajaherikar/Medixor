@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db";
-import { validateTenantAccess } from "@/lib/auth-helpers";
+import { validateTenantAccess, requireAdmin } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +28,10 @@ export async function POST(
   const { tenant } = await params;
   const authResult = await validateTenantAccess(req, tenant);
   if (authResult instanceof NextResponse) return authResult;
+  
+  // Only admins can record payments
+  const adminCheck = requireAdmin(authResult);
+  if (adminCheck) return adminCheck;
   
   const body = await req.json() as Record<string, unknown>;
   const payment = {

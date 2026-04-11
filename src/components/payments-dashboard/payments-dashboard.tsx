@@ -86,7 +86,7 @@ export function PaymentsDashboard({ tenant }: PaymentsDashboardProps) {
   const collectMutation = useMutation({
     mutationFn: async () => {
       if (!collectInvoice) return;
-      await fetch(`/api/${tenant}/payments`, {
+      const response = await fetch(`/api/${tenant}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -100,6 +100,11 @@ export function PaymentsDashboard({ tenant }: PaymentsDashboardProps) {
           reference: payRef || undefined,
         }),
       });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Failed to record payment: ${response.status} - ${error}`);
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices", tenant] });
@@ -112,7 +117,7 @@ export function PaymentsDashboard({ tenant }: PaymentsDashboardProps) {
   const payMutation = useMutation({
     mutationFn: async () => {
       if (!payBill) return;
-      await fetch(`/api/${tenant}/payments`, {
+      const response = await fetch(`/api/${tenant}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -126,6 +131,11 @@ export function PaymentsDashboard({ tenant }: PaymentsDashboardProps) {
           reference: payRef || undefined,
         }),
       });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Failed to record payment: ${response.status} - ${error}`);
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-bills", tenant] });

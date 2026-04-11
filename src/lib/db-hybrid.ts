@@ -240,15 +240,11 @@ export async function addPayment(payment: Payment): Promise<void> {
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getUsers(tenantId: string): Promise<AppUser[]> {
-  console.log("[db-hybrid] getUsers called for tenant:", tenantId, "useLocal:", useLocal());
   if (useLocal()) {
-    console.log("[db-hybrid] Using local DB for getUsers");
     return localDb.getUsers(tenantId);
   }
   try {
-    console.log("[db-hybrid] Attempting cloudDb.getUsers");
     const users = await cloudDb.getUsers(tenantId);
-    console.log("[db-hybrid] cloudDb.getUsers returned:", users.length, "users");
     return users;
   } catch (error) {
     console.warn('[db-hybrid] Cloud DB failed for getUsers, using local:', error);
@@ -267,15 +263,11 @@ export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | 
 }
 
 export async function addUser(user: AppUser): Promise<void> {
-  console.log("[db-hybrid] addUser called:", { id: user.id, name: user.name, tenantId: user.tenantId, useLocal: useLocal() });
   if (useLocal()) {
-    console.log("[db-hybrid] Using local DB for addUser");
     return localDb.addUser(user);
   }
   try {
-    console.log("[db-hybrid] Attempting cloudDb.addUser");
     await cloudDb.addUser(user);
-    console.log("[db-hybrid] cloudDb.addUser succeeded, also saving locally");
     localDb.addUser(user);
   } catch (error) {
     console.warn('[db-hybrid] Cloud DB failed, saving locally:', error);
