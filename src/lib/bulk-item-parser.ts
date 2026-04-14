@@ -49,9 +49,10 @@ const UNIT_TYPES: UnitType[] = [
 function isExpiryDate(val: string): boolean {
   if (!val || val.length < 8) return false;
   
-  // Formats: YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, DD-MM-YY, etc.
+  // Formats: YYYY-MM-DD, YYYY/MM/DD, DD-MM-YYYY, DD/MM/YYYY, DD-MM-YY, etc.
   const datePatterns = [
     /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
+    /^\d{4}\/\d{2}\/\d{2}$/, // YYYY/MM/DD
     /^\d{2}-\d{2}-\d{4}$/, // DD-MM-YYYY
     /^\d{2}\/\d{2}\/\d{4}$/, // DD/MM/YYYY
     /^\d{2}-\d{2}-\d{2}$/, // DD-MM-YY
@@ -65,20 +66,43 @@ function isExpiryDate(val: string): boolean {
  */
 function normalizeDate(dateStr: string): string | null {
   if (!dateStr) return null;
-  
+
   const val = dateStr.trim();
-  
-  // Already ISO format
-  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-  
-  // DD-MM-YYYY or DD/MM/YYYY
-  const match = val.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4}|\d{2})$/);
-  if (match) {
-    let [, dd, mm, yyyy] = match;
-    if (yyyy.length === 2) yyyy = parseInt(yyyy) > 50 ? `19${yyyy}` : `20${yyyy}`;
-    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+
+  const toIsoDate = (yyyy: string, mm: string, dd: string): string | null => {
+    const year = parseInt(yyyy, 10);
+    const month = parseInt(mm, 10);
+    const day = parseInt(dd, 10);
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day) ||
+        month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+    const normalized = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime()) ||
+        parsed.getFullYear() !== year ||
+        parsed.getMonth() + 1 !== month ||
+        parsed.getDate() !== day) {
+      return null;
+    }
+    return normalized;
+  };
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = val.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if (isoMatch) {
+    const [, yyyy, mm, dd] = isoMatch;
+    return toIsoDate(yyyy, mm, dd);
   }
-  
+
+  // DD-MM-YYYY, DD/MM/YYYY, DD-MM-YY or DD/MM/YY
+  const dmyMatch = val.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4}|\d{2})$/);
+  if (dmyMatch) {
+    let [, dd, mm, yyyy] = dmyMatch;
+    if (yyyy.length === 2) yyyy = parseInt(yyyy, 10) > 50 ? `19${yyyy}` : `20${yyyy}`;
+    return toIsoDate(yyyy, mm, dd);
+  }
+
   return null;
 }
 
@@ -186,8 +210,8 @@ export function parseRawItems(rawText: string, options: ParserOptions = {}): Par
   
   // Parse rows
   let startIdx = hasHeader ? 1 : 0;
-  const rows = lines.slice(startIdx).map(line => 
-    line.split(delim).map(cell => cell.trim()).filter(Boolean)
+  const rows = lines.slice(startIdx).map(line =>
+    line.split(delim).map(cell => cell.trim())
   );
   
   if (rows.length === 0) {

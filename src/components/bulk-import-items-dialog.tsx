@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { AlertCircle, CheckCircle2, Copy, Download, Eye, EyeOff, Lightbulb } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Lightbulb } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -61,13 +61,18 @@ export function BulkImportDialog({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleParse = () => {
-    if (!rawText.trim()) {
+    const rowDelimiter = delimiter === "comma" ? "," : delimiter === "space" ? " " : "\t";
+    const textToParse = showRawAsTable
+      ? editableRows.map((row) => row.join(rowDelimiter)).join("\n")
+      : rawText;
+
+    if (!textToParse.trim()) {
       toast.error("Please paste some data");
       return;
     }
 
     try {
-      const result = parseRawItems(rawText, { delimiter, hasHeader });
+      const result = parseRawItems(textToParse, { delimiter, hasHeader });
       setParseResult(result);
 
       if (result.successCount === 0 && result.items.length > 0) {
@@ -123,14 +128,14 @@ export function BulkImportDialog({
       const firstLine = lines[0];
       if (firstLine.includes('\t')) delim = "tab";
       else if (firstLine.includes(',')) delim = "comma";
-      else if (firstLine.split(' ').length > 1) delim = "space";
+      else if (/\s{2,}/.test(firstLine)) delim = "space";
       else delim = "tab";
     }
 
-    const delimiterChar = delim === "tab" ? "\t" : delim === "comma" ? "," : " ";
+    const delimiterPattern: string | RegExp = delim === "tab" ? "\t" : delim === "comma" ? "," : /\s{2,}/;
     
     const rows = lines.map(line => 
-      line.split(delimiterChar).map(cell => cell.trim())
+      line.split(delimiterPattern).map(cell => cell.trim())
     );
     
     return rows;
@@ -144,9 +149,10 @@ export function BulkImportDialog({
         setEditableRows(tableData);
       }
     } else {
-      // Reconstruct raw text from editable rows
+      // Reconstruct raw text from editable rows using active delimiter
+      const activeDelimChar = delimiter === "comma" ? "," : delimiter === "space" ? " " : "\t";
       const reconstructedText = editableRows
-        .map(row => row.join('\t'))
+        .map(row => row.join(activeDelimChar))
         .join('\n');
       setRawText(reconstructedText);
       setEditableRows([]);

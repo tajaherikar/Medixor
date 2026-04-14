@@ -140,17 +140,17 @@ export function BatchSelector({ tenant, strategy, onAdd }: BatchSelectorProps) {
                     To create an invoice, you need to first add items to your inventory via the supplier bill page.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                    <Link href={`/${tenant}/suppliers`}>
-                      <Button type="button" size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 h-8 px-2 border border-blue-600">
+                    <Button asChild type="button" size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 h-8 px-2 border border-blue-600">
+                      <Link href={`/${tenant}/suppliers`}>
                         + Create Supplier Bill
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                     <span className="text-xs text-blue-700 flex items-center">or</span>
-                    <Link href={`/${tenant}/settings`}>
-                      <Button type="button" size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 h-8 px-2 border border-blue-600">
+                    <Button asChild type="button" size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 h-8 px-2 border border-blue-600">
+                      <Link href={`/${tenant}/settings`}>
                         ⚙️ Enable Quick Bill in Settings
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                   </div>
                 </div>
               </div>
