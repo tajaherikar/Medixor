@@ -32,7 +32,7 @@ export function ExpiryBadge({ expiryDate, showRelative = true }: ExpiryBadgeProp
         <AlertCircle className="h-3 w-3 shrink-0" />
         <span>{formatted}</span>
         {showRelative && (
-          <span className="text-amber-500 font-normal">· {daysLeft}d left</span>
+          <span className="text-amber-700 font-normal">· {daysLeft}d left</span>
         )}
       </span>
     );
