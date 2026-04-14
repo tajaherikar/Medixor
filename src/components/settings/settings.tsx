@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSettingsStore } from "@/lib/stores";
 import { BusinessSettings } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import {
   Building2,
   Palette,
@@ -92,7 +94,10 @@ export function Settings({ tenant }: { tenant: string }) {
   const { settings, updateSettings } = useSettingsStore();
   const [draft, setDraft] = useState<BusinessSettings>({ ...settings });
   const [saving, setSaving] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingNavUrl, setPendingNavUrl] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   // Load from server on mount — server is source of truth across devices
   useEffect(() => {
@@ -146,8 +151,50 @@ export function Settings({ tenant }: { tenant: string }) {
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(settings);
 
+  // Warn on browser tab close / refresh
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  // Intercept in-app link clicks in capture phase — fires before Next.js router
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleClick = (e: MouseEvent) => {
+      const anchor = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      const href = anchor.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+      try {
+        const url = new URL(href, window.location.origin);
+        if (url.origin !== window.location.origin) return;  // external link
+        if (url.pathname === window.location.pathname) return; // same page
+      } catch {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingNavUrl(href);
+      setShowUnsavedModal(true);
+    };
+    document.addEventListener('click', handleClick, true);
+    return () => document.removeEventListener('click', handleClick, true);
+  }, [isDirty]);
+
+  function navigateToPending() {
+    if (pendingNavUrl) router.push(pendingNavUrl);
+    setPendingNavUrl(null);
+  }
+
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="flex flex-col h-full">
+    <div className="flex-1 min-h-0 overflow-y-auto">
+    <div className="space-y-6 max-w-3xl pb-6">
 
       {/* ── Business Identity ─────────────────────────────────────────── */}
       <Section
@@ -383,28 +430,51 @@ export function Settings({ tenant }: { tenant: string }) {
           </div>
         </Field>
       </Section>
+    </div>
+    </div>
 
-      {/* ── Save bar ──────────────────────────────────────────────────── */}
-      {isDirty && (
-        <div className="flex items-center justify-between px-5 py-3.5 rounded-xl bg-primary/5 border border-primary/20 sticky bottom-4">
-          <p className="text-sm text-muted-foreground">You have unsaved changes.</p>
-          <div className="flex items-center gap-2">
+      {/* ── Save bar — always-visible footer outside scroll area ─────── */}
+      <div className="shrink-0 -mx-6 md:-mx-8 -mb-6 md:-mb-8 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="px-6 md:px-8 py-3.5 flex items-center justify-between gap-4">
+          <p className={`text-sm text-muted-foreground transition-all duration-300 ${
+            isDirty ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2 pointer-events-none"
+          }`}>
+            You have unsaved changes.
+          </p>
+          <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={handleDiscard}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-background hover:bg-muted transition-colors text-muted-foreground"
+              disabled={!isDirty}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-background hover:bg-muted transition-colors text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Discard
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
+              disabled={saving || !isDirty}
+              className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? "Saving…" : "Save settings"}
             </button>
           </div>
         </div>
-      )}
+      </div>
+
+      <UnsavedChangesModal
+        open={showUnsavedModal}
+        onSave={async () => {
+          await handleSave();
+          setShowUnsavedModal(false);
+          navigateToPending();
+        }}
+        onDiscard={() => {
+          setDraft({ ...settings });
+          setShowUnsavedModal(false);
+          navigateToPending();
+        }}
+        title="Unsaved Settings"
+        description="You have unsaved changes to your settings. Save before leaving?"
+      />
     </div>
   );
 }
