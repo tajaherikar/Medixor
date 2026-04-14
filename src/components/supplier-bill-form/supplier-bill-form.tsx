@@ -4,13 +4,15 @@ import { useState, useEffect, useRef, type ChangeEvent, useMemo } from "react";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Copy, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { BulkImportDialog } from "@/components/bulk-import-items-dialog";
+import { ParsedItem } from "@/lib/bulk-item-parser";
 import {
   Select,
   SelectContent,
@@ -89,6 +91,8 @@ interface SupplierBillFormProps {
 export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: SupplierBillFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const isEditing = !!billId && !!initialBill;
@@ -170,6 +174,54 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   const billTaxable = itemTotals.reduce((s, i) => s + i.taxable, 0);
   const billGst = itemTotals.reduce((s, i) => s + i.cgst + i.sgst, 0);
   const billTotal = billTaxable + billGst;
+
+  // Handle bulk item import from parsed data
+  const handleBulkAddItems = (parsedItems: ParsedItem[]) => {
+    const currentLength = fields.length;
+    const hasEmptyItem = fields[0]?.itemName === "";
+
+    // Remove the empty first item if it's the only one
+    if (hasEmptyItem && currentLength === 1) {
+      remove(0);
+    }
+
+    // Map parsed items to form structure
+    const itemsToAdd = parsedItems.map((item) => ({
+      itemName: item.itemName || "",
+      hsnCode: item.hsnCode || "",
+      batchNumber: item.batchNumber || "",
+      expiryDate: item.expiryDate || "",
+      mrp: item.mrp || 0,
+      purchasePrice: item.purchasePrice || 0,
+      quantity: item.quantity || 0,
+      gstRate: item.gstRate || 12,
+      gstInclusive: false,
+      unitType: item.unitType || "",
+      packSize: item.packSize || undefined,
+      schemeQuantity: item.schemeQuantity || 0,
+      schemePattern: item.schemePattern || "",
+    }));
+
+    // Add all items to form in a single call to avoid multiple re-renders
+    append(itemsToAdd);
+
+    // Success feedback
+    setShowBulkImport(false);
+    toast.success(`Added ${itemsToAdd.length} items`, {
+      description: "Items added to the form. Verify details before saving.",
+      duration: 3000,
+    });
+  };
+
+  const toggleItemExpanded = (fieldId: string) => {
+    const newSet = new Set(expandedItems);
+    if (newSet.has(fieldId)) {
+      newSet.delete(fieldId);
+    } else {
+      newSet.add(fieldId);
+    }
+    setExpandedItems(newSet);
+  };
 
   async function onSubmit(data: BillFormValues) {
     const supplier = suppliers.find((s) => s.id === data.supplierId);
@@ -264,22 +316,17 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pt-0 p-4">
-      {/* Form Header */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">
-          {isEditing ? "Edit Supplier Bill" : "Add Supplier Bill"}
-        </h2>
-        {isEditing && initialBill?.editedAt && (
-          <p className="text-xs text-muted-foreground">
-            Last Edited: {format(parseISO(initialBill.editedAt), "dd MMM yyyy, hh:mm a")}
-          </p>
-        )}
-      </div>
+      {/* Last Edited Info - only for editing */}
+      {isEditing && initialBill?.editedAt && (
+        <p className="text-xs text-muted-foreground">
+          Last Edited: {format(parseISO(initialBill.editedAt), "dd MMM yyyy, hh:mm a")}
+        </p>
+      )}
 
       {/* Header Fields */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Supplier Details</CardTitle>
+          <h3 className="text-base font-semibold">Supplier Details</h3>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-3 gap-4">
           {/* Supplier */}
@@ -333,221 +380,282 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
 
       {/* Items */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Items</CardTitle>
-          <Button type="button" size="sm" variant="outline" onClick={() => append(emptyItem)}>
-            <Plus className="h-4 w-4 mr-1" /> Add Item
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <h3 className="text-base font-semibold">Items</h3>
+          <Button type="button" size="sm" variant="outline" onClick={() => setShowBulkImport(true)} className="gap-2">
+            <Copy className="h-4 w-4" /> Bulk Import
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           {fields.map((field, index) => {
             const t = itemTotals[index];
+            const isExpanded = expandedItems.has(field.id);
             return (
-              <div key={field.id}>
-                {index > 0 && <Separator className="mb-4" />}
-                <div className="grid sm:grid-cols-3 gap-3">
-                  {/* Row 1 */}
-                  <div className="space-y-1">
-                    <Label>Item Name</Label>
-                    <Input placeholder="Paracetamol 500mg" {...register(`items.${index}.itemName`)} />
-                    {errors.items?.[index]?.itemName && <p className="text-xs text-destructive">{errors.items[index]!.itemName!.message}</p>}
-                  </div>
-                  <div className="space-y-1">
-                    <Label>HSN Code <span className="text-muted-foreground">(optional)</span></Label>
-                    <Input placeholder="30049099" {...register(`items.${index}.hsnCode`)} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Batch Number</Label>
-                    <Input placeholder="PCM-2025-A" {...register(`items.${index}.batchNumber`)} />
-                    {errors.items?.[index]?.batchNumber && <p className="text-xs text-destructive">{errors.items[index]!.batchNumber!.message}</p>}
-                  </div>
-
-                  {/* Row 2 */}
-                  <div className="space-y-1">
-                    <Label>Expiry Date</Label>
-                    <Input type="date" {...register(`items.${index}.expiryDate`)} />
-                    {errors.items?.[index]?.expiryDate && <p className="text-xs text-destructive">{errors.items[index]!.expiryDate!.message}</p>}
-                  </div>
-                  <div className="space-y-1">
-                    <Label>MRP (₹)</Label>
-                    <Input type="number" step="0.01" placeholder="25.00" {...register(`items.${index}.mrp`, { valueAsNumber: true })} />
-                    {errors.items?.[index]?.mrp && <p className="text-xs text-destructive">{errors.items[index]!.mrp!.message}</p>}
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Purchase Price (₹)</Label>
-                    <Input type="number" step="0.01" placeholder="18.00" {...register(`items.${index}.purchasePrice`, { valueAsNumber: true })} />
-                    {errors.items?.[index]?.purchasePrice && <p className="text-xs text-destructive">{errors.items[index]!.purchasePrice!.message}</p>}
-                  </div>
-
-                  {/* Row 3 — Unit + Pack Size + Quantity + GST */}
-                  <div className="space-y-1">
-                    <Label>Unit Type <span className="text-muted-foreground">(optional)</span></Label>
-                    <Select
-                      value={watchedItems?.[index]?.unitType || ""}
-                      onValueChange={(v) => setValue(`items.${index}.unitType`, v as UnitType)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="e.g. Tab" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>Solid / Oral Solid</SelectLabel>
-                          <SelectItem value="Tab">Tab — Tablet</SelectItem>
-                          <SelectItem value="Cap">Cap — Capsule</SelectItem>
-                          <SelectItem value="SR Tab">SR Tab — Sustained Release</SelectItem>
-                          <SelectItem value="ER Tab">ER Tab — Extended Release</SelectItem>
-                          <SelectItem value="XR Tab">XR Tab — Extended Release (XR)</SelectItem>
-                          <SelectItem value="CR Tab">CR Tab — Controlled Release</SelectItem>
-                          <SelectItem value="EC Tab">EC Tab — Enteric Coated</SelectItem>
-                          <SelectItem value="DT">DT — Dispersible Tablet</SelectItem>
-                          <SelectItem value="MD Tab">MD Tab — Mouth Dissolving</SelectItem>
-                          <SelectItem value="Chew Tab">Chew Tab — Chewable</SelectItem>
-                          <SelectItem value="Eff Tab">Eff Tab — Effervescent</SelectItem>
-                          <SelectItem value="SL Tab">SL Tab — Sub-Lingual</SelectItem>
-                          <SelectItem value="SF Tab">SF Tab — Sugar Free</SelectItem>
-                          <SelectItem value="Loz">Loz — Lozenge</SelectItem>
-                          <SelectItem value="Gran">Gran — Granules</SelectItem>
-                          <SelectItem value="Pellets">Pellets — Sprinkles</SelectItem>
-                          <SelectItem value="Sachet">Sachet</SelectItem>
-                        </SelectGroup>
-                        <SelectGroup>
-                          <SelectLabel>Liquid</SelectLabel>
-                          <SelectItem value="Syp">Syp — Syrup</SelectItem>
-                          <SelectItem value="Susp">Susp — Suspension</SelectItem>
-                          <SelectItem value="Sol">Sol — Solution</SelectItem>
-                          <SelectItem value="Drops">Drops — Oral Drops</SelectItem>
-                          <SelectItem value="Eye Drops">Eye Drops</SelectItem>
-                          <SelectItem value="Ear Drops">Ear Drops</SelectItem>
-                          <SelectItem value="Nasal Drops">Nasal Drops</SelectItem>
-                          <SelectItem value="Nasal Spray">Nasal Spray</SelectItem>
-                          <SelectItem value="Mouth Wash">Mouth Wash</SelectItem>
-                        </SelectGroup>
-                        <SelectGroup>
-                          <SelectLabel>Injectable</SelectLabel>
-                          <SelectItem value="Inj">Inj — Injection</SelectItem>
-                          <SelectItem value="Vial">Vial</SelectItem>
-                          <SelectItem value="Amp">Amp — Ampoule</SelectItem>
-                          <SelectItem value="IV Inf">IV Inf — IV Infusion</SelectItem>
-                        </SelectGroup>
-                        <SelectGroup>
-                          <SelectLabel>Topical / External</SelectLabel>
-                          <SelectItem value="Cream">Cream</SelectItem>
-                          <SelectItem value="Oint">Oint — Ointment</SelectItem>
-                          <SelectItem value="Gel">Gel</SelectItem>
-                          <SelectItem value="Lotion">Lotion</SelectItem>
-                          <SelectItem value="Dusting Pwd">Dusting Pwd — Dusting Powder</SelectItem>
-                          <SelectItem value="Spray">Spray — Topical/Throat</SelectItem>
-                          <SelectItem value="Patch">Patch — Transdermal</SelectItem>
-                          <SelectItem value="Shampoo">Shampoo — Medicated</SelectItem>
-                          <SelectItem value="Soap">Soap — Medicated</SelectItem>
-                        </SelectGroup>
-                        <SelectGroup>
-                          <SelectLabel>Respiratory</SelectLabel>
-                          <SelectItem value="MDI">MDI — Metered Dose Inhaler</SelectItem>
-                          <SelectItem value="Rotacap">Rotacap — Rotahaler Capsule</SelectItem>
-                          <SelectItem value="Turbuhaler">Turbuhaler</SelectItem>
-                          <SelectItem value="Neb Sol">Neb Sol — Nebulization Solution</SelectItem>
-                        </SelectGroup>
-                        <SelectGroup>
-                          <SelectLabel>Other</SelectLabel>
-                          <SelectItem value="Supp">Supp — Suppository</SelectItem>
-                          <SelectItem value="Pessary">Pessary — Vaginal Pessary</SelectItem>
-                          <SelectItem value="Device">Device — Medical Device</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Pack Size <span className="text-muted-foreground">(optional)</span></Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="e.g. 10"
-                      {...register(`items.${index}.packSize`, { valueAsNumber: true })}
-                    />
-                    <p className="text-xs text-muted-foreground">Units per strip/bottle (e.g. 10 → Tab 10)</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Quantity</Label>
-                    <Input type="number" placeholder="100" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />
-                    {errors.items?.[index]?.quantity && <p className="text-xs text-destructive">{errors.items[index]!.quantity!.message}</p>}
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Scheme Qty <span className="text-muted-foreground">(free items)</span></Label>
-                    <Input type="number" min={0} placeholder="1" {...register(`items.${index}.schemeQuantity`, { valueAsNumber: true })} />
-                    <p className="text-xs text-muted-foreground">Free items in scheme (e.g., 1 in 10+1)</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Scheme Pattern <span className="text-muted-foreground">(optional)</span></Label>
-                    <Input type="text" placeholder="10+1, 10+5" {...register(`items.${index}.schemePattern`)} />
-                    <p className="text-xs text-muted-foreground">Pattern for reference only</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Total Received</Label>
-                    <div className="flex items-center gap-2 h-10 bg-gray-50 px-3 rounded border border-input">
-                      <span className="text-sm">
-                        {(watchedItems?.[index]?.quantity ?? 0)} + {(watchedItems?.[index]?.schemeQuantity ?? 0)} = <strong>{(watchedItems?.[index]?.quantity ?? 0) + (watchedItems?.[index]?.schemeQuantity ?? 0)}</strong> units
-                      </span>
+              <div key={field.id} className="border rounded-lg p-4 bg-slate-50 hover:bg-slate-100 transition-colors">
+                {/* Item Header - Always Visible */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-foreground">
+                      {watchedItems?.[index]?.itemName || "(No item name)"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Batch: {watchedItems?.[index]?.batchNumber || "-"} • Exp: {watchedItems?.[index]?.expiryDate || "-"}
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label>GST Rate (%)</Label>
-                    <Select
-                      defaultValue={String(emptyItem.gstRate)}
-                      onValueChange={(v) => setValue(`items.${index}.gstRate`, Number(v))}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleItemExpanded(field.id)}
+                      className="h-8 w-8 p-0"
                     >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {GST_RATES.map((r) => (
-                          <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(watchedItems?.[index]?.gstInclusive)}
-                        onChange={(e) => setValue(`items.${index}.gstInclusive`, e.target.checked)}
-                        className="h-4 w-4 rounded border border-input text-primary focus-visible:outline-none"
-                      />
-                      <span>Inclusive GST in line total</span>
-                    </label>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Line Total</Label>
-                    <div className="flex items-center gap-2 h-10">
-                      <span className="text-sm text-muted-foreground">
-                        {rupees(t?.taxable ?? 0)} + GST {rupees((t?.cgst ?? 0) + (t?.sgst ?? 0))} = <strong>{rupees(t?.lineTotal ?? 0)}</strong>
-                      </span>
-                      {fields.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" className="ml-auto" onClick={() => remove(index)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
                       )}
+                    </Button>
+                    {fields.length > 1 && (
+                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => remove(index)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Core Fields - Always Visible */}
+                <div className="space-y-4">
+                  {/* Row 1: Item Name, Batch, Expiry */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Item Name *</Label>
+                      <Input placeholder="e.g., Paracetamol 500mg" {...register(`items.${index}.itemName`)} className="text-sm" />
+                      {errors.items?.[index]?.itemName && <p className="text-xs text-destructive">{errors.items[index]!.itemName!.message}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">HSN Code <span className="text-muted-foreground">(opt)</span></Label>
+                      <Input placeholder="30049099" {...register(`items.${index}.hsnCode`)} className="text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Batch Number *</Label>
+                      <Input placeholder="PCM-2025-A" {...register(`items.${index}.batchNumber`)} className="text-sm" />
+                      {errors.items?.[index]?.batchNumber && <p className="text-xs text-destructive">{errors.items[index]!.batchNumber!.message}</p>}
                     </div>
                   </div>
+
+                  {/* Row 2: Expiry, MRP, Cost */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Expiry Date *</Label>
+                      <Input type="date" {...register(`items.${index}.expiryDate`)} className="text-sm" />
+                      {errors.items?.[index]?.expiryDate && <p className="text-xs text-destructive">{errors.items[index]!.expiryDate!.message}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">MRP (₹) *</Label>
+                      <Input type="number" step="0.01" placeholder="0" {...register(`items.${index}.mrp`, { valueAsNumber: true })} className="text-sm" />
+                      {errors.items?.[index]?.mrp && <p className="text-xs text-destructive">{errors.items[index]!.mrp!.message}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Purchase Price (₹) *</Label>
+                      <Input type="number" step="0.01" placeholder="0" {...register(`items.${index}.purchasePrice`, { valueAsNumber: true })} className="text-sm" />
+                      {errors.items?.[index]?.purchasePrice && <p className="text-xs text-destructive">{errors.items[index]!.purchasePrice!.message}</p>}
+                    </div>
+                  </div>
+
+                  {/* Row 3: Quantity & Totals */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Quantity *</Label>
+                      <Input type="number" placeholder="100" {...register(`items.${index}.quantity`, { valueAsNumber: true })} className="text-sm" />
+                      {errors.items?.[index]?.quantity && <p className="text-xs text-destructive">{errors.items[index]!.quantity!.message}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Total Received</Label>
+                      <div className="h-10 bg-slate-100 px-3 rounded border border-slate-200 flex items-center text-sm font-medium text-muted-foreground cursor-not-allowed">
+                        {(watchedItems?.[index]?.quantity ?? 0)} + {(watchedItems?.[index]?.schemeQuantity ?? 0)} = {(watchedItems?.[index]?.quantity ?? 0) + (watchedItems?.[index]?.schemeQuantity ?? 0)} units
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Line Total</Label>
+                      <div className="h-10 bg-slate-100 px-3 rounded border border-slate-200 flex items-center text-sm font-semibold text-blue-600 cursor-not-allowed">
+                        {rupees(t?.lineTotal ?? 0)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Advanced Section - Collapsible */}
+                  {isExpanded && (
+                    <div className="pt-3 border-t space-y-4">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase">Advanced Options</div>
+
+                      {/* Unit Type & Pack Size */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium">Unit Type <span className="text-muted-foreground">(opt)</span></Label>
+                          <Select
+                            value={watchedItems?.[index]?.unitType || ""}
+                            onValueChange={(v) => setValue(`items.${index}.unitType`, v as UnitType)}
+                          >
+                            <SelectTrigger className="h-9 text-sm">
+                              <SelectValue placeholder="e.g., Tab" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Solid / Oral Solid</SelectLabel>
+                                <SelectItem value="Tab">Tab — Tablet</SelectItem>
+                                <SelectItem value="Cap">Cap — Capsule</SelectItem>
+                                <SelectItem value="SR Tab">SR Tab — Sustained Release</SelectItem>
+                                <SelectItem value="ER Tab">ER Tab — Extended Release</SelectItem>
+                                <SelectItem value="XR Tab">XR Tab — Extended Release (XR)</SelectItem>
+                                <SelectItem value="CR Tab">CR Tab — Controlled Release</SelectItem>
+                                <SelectItem value="EC Tab">EC Tab — Enteric Coated</SelectItem>
+                                <SelectItem value="DT">DT — Dispersible Tablet</SelectItem>
+                                <SelectItem value="MD Tab">MD Tab — Mouth Dissolving</SelectItem>
+                                <SelectItem value="Chew Tab">Chew Tab — Chewable</SelectItem>
+                                <SelectItem value="Eff Tab">Eff Tab — Effervescent</SelectItem>
+                                <SelectItem value="SL Tab">SL Tab — Sub-Lingual</SelectItem>
+                                <SelectItem value="SF Tab">SF Tab — Sugar Free</SelectItem>
+                                <SelectItem value="Loz">Loz — Lozenge</SelectItem>
+                                <SelectItem value="Gran">Gran — Granules</SelectItem>
+                                <SelectItem value="Pellets">Pellets — Sprinkles</SelectItem>
+                                <SelectItem value="Sachet">Sachet</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Liquid</SelectLabel>
+                                <SelectItem value="Syp">Syp — Syrup</SelectItem>
+                                <SelectItem value="Susp">Susp — Suspension</SelectItem>
+                                <SelectItem value="Sol">Sol — Solution</SelectItem>
+                                <SelectItem value="Drops">Drops — Oral Drops</SelectItem>
+                                <SelectItem value="Eye Drops">Eye Drops</SelectItem>
+                                <SelectItem value="Ear Drops">Ear Drops</SelectItem>
+                                <SelectItem value="Nasal Drops">Nasal Drops</SelectItem>
+                                <SelectItem value="Nasal Spray">Nasal Spray</SelectItem>
+                                <SelectItem value="Mouth Wash">Mouth Wash</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Injectable</SelectLabel>
+                                <SelectItem value="Inj">Inj — Injection</SelectItem>
+                                <SelectItem value="Vial">Vial</SelectItem>
+                                <SelectItem value="Amp">Amp — Ampoule</SelectItem>
+                                <SelectItem value="IV Inf">IV Inf — IV Infusion</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Topical / External</SelectLabel>
+                                <SelectItem value="Cream">Cream</SelectItem>
+                                <SelectItem value="Oint">Oint — Ointment</SelectItem>
+                                <SelectItem value="Gel">Gel</SelectItem>
+                                <SelectItem value="Lotion">Lotion</SelectItem>
+                                <SelectItem value="Dusting Pwd">Dusting Pwd — Dusting Powder</SelectItem>
+                                <SelectItem value="Spray">Spray — Topical/Throat</SelectItem>
+                                <SelectItem value="Patch">Patch — Transdermal</SelectItem>
+                                <SelectItem value="Shampoo">Shampoo — Medicated</SelectItem>
+                                <SelectItem value="Soap">Soap — Medicated</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Respiratory</SelectLabel>
+                                <SelectItem value="MDI">MDI — Metered Dose Inhaler</SelectItem>
+                                <SelectItem value="Rotacap">Rotacap — Rotahaler Capsule</SelectItem>
+                                <SelectItem value="Turbuhaler">Turbuhaler</SelectItem>
+                                <SelectItem value="Neb Sol">Neb Sol — Nebulization Solution</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Other</SelectLabel>
+                                <SelectItem value="Supp">Supp — Suppository</SelectItem>
+                                <SelectItem value="Pessary">Pessary — Vaginal Pessary</SelectItem>
+                                <SelectItem value="Device">Device — Medical Device</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium">Pack Size <span className="text-muted-foreground">(opt)</span></Label>
+                          <Input type="number" min={1} placeholder="e.g., 10" {...register(`items.${index}.packSize`, { valueAsNumber: true })} className="text-sm" />
+                          <p className="text-xs text-muted-foreground">Units per strip/bottle</p>
+                        </div>
+                      </div>
+
+                      {/* Scheme Section */}
+                      <div className="bg-amber-50 p-3 rounded border border-amber-200 space-y-3">
+                        <div className="text-xs font-semibold text-amber-900">Scheme Info</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-medium">Scheme Qty (Free Items) <span className="text-muted-foreground">(opt)</span></Label>
+                            <Input type="number" min={0} placeholder="1" {...register(`items.${index}.schemeQuantity`, { valueAsNumber: true })} className="text-sm" />
+                            <p className="text-xs text-muted-foreground">e.g., 1 in 10+1</p>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-medium">Scheme Pattern <span className="text-muted-foreground">(opt)</span></Label>
+                            <Input type="text" placeholder="10+1, 10+5" {...register(`items.${index}.schemePattern`)} className="text-sm" />
+                            <p className="text-xs text-muted-foreground">Pattern for reference</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tax Section */}
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-3">
+                        <div className="text-xs font-semibold text-blue-900">Tax & Calculation</div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-xs font-medium">GST Rate (%)</Label>
+                            <Select
+                              defaultValue={String(emptyItem.gstRate)}
+                              onValueChange={(v) => setValue(`items.${index}.gstRate`, Number(v))}
+                            >
+                              <SelectTrigger className="h-9 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {GST_RATES.map((r) => (
+                                  <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <label className="flex items-center gap-2 text-xs cursor-pointer mt-6">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(watchedItems?.[index]?.gstInclusive)}
+                              onChange={(e) => setValue(`items.${index}.gstInclusive`, e.target.checked)}
+                              className="h-4 w-4 rounded"
+                            />
+                            <span className="font-medium">Inclusive GST</span>
+                          </label>
+                        </div>
+                        <div className="text-xs text-blue-900 bg-blue-100 p-2 rounded border border-blue-300">
+                          Taxable: {rupees(t?.taxable ?? 0)} + GST: {rupees((t?.cgst ?? 0) + (t?.sgst ?? 0))} = <strong>{rupees(t?.lineTotal ?? 0)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
 
           {/* Bill Totals */}
-          <Separator />
-          <div className="flex flex-col items-end gap-1 text-sm">
-            <div className="flex gap-8">
-              <span className="text-muted-foreground">Taxable Amount</span>
-              <span className="w-28 text-right">{rupees(billTaxable)}</span>
+          <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg p-4 border border-slate-200">
+            <div className="flex flex-col items-end gap-2 text-sm">
+              <div className="flex gap-8">
+                <span className="text-muted-foreground">Taxable Amount</span>
+                <span className="w-28 text-right font-medium">{rupees(billTaxable)}</span>
+              </div>
+              <div className="flex gap-8">
+                <span className="text-muted-foreground">Total GST (CGST + SGST)</span>
+                <span className="w-28 text-right text-blue-600 font-medium">{rupees(billGst)}</span>
+              </div>
+              <div className="flex gap-8 font-semibold text-base pt-1 border-t w-full justify-end pr-0">
+                <span>Grand Total</span>
+                <span className="w-28 text-right text-lg text-blue-700">{rupees(billTotal)}</span>
+              </div>
             </div>
-            <div className="flex gap-8">
-              <span className="text-muted-foreground">Total GST (CGST + SGST)</span>
-              <span className="w-28 text-right text-blue-600">{rupees(billGst)}</span>
-            </div>
-            <div className="flex gap-8 font-semibold text-base">
-              <span>Grand Total</span>
-              <span className="w-28 text-right">{rupees(billTotal)}</span>
-            </div>
+          </div>
+
+          {/* Add Item Button at Bottom */}
+          <div className="flex gap-2 pt-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => append(emptyItem)} className="gap-2">
+              <Plus className="h-4 w-4" /> Add Item
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -556,6 +664,13 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
         title={!isAdmin ? "Admin access required" : undefined}>
         {submitted ? (isEditing ? "Bill Updated ✓" : "Bill Saved ✓") : isSubmitting ? (isEditing ? "Updating..." : "Saving...") : (isEditing ? "Update Bill" : "Save Supplier Bill")}
       </Button>
+
+      <BulkImportDialog
+        open={showBulkImport}
+        onOpenChange={setShowBulkImport}
+        onAddItems={handleBulkAddItems}
+        title="Bulk Import Items from Invoice"
+      />
 
       <UnsavedChangesModal
         open={showUnsavedModal}

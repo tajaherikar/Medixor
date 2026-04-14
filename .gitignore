@@ -61,3 +61,4 @@ Medixor-Offline-*/
 medixor-app/
 dist-electron/
 *.zip
+.env.local

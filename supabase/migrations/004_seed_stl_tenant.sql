@@ -1,0 +1,12 @@
+-- Migration: Seed Star Trade Link (STL) tenant
+-- Date: 2026-04-14
+-- Description:
+--   Reserved for STL tenant bootstrap data that is safe to apply in all environments.
+--
+-- Security note:
+--   Do not seed admin users or password hashes in migrations. Migrations may be applied
+--   outside local/dev environments, and hardcoded credentials would create a persistent
+--   default admin account.
+--
+--   Provision the initial STL admin user through a one-time setup flow, a local-only seed
+--   script, or an environment-driven password reset/bootstrap process instead.

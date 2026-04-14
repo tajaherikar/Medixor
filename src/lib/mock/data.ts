@@ -1,5 +1,28 @@
-import { Batch, Customer, Supplier, Invoice, SupplierBill, Payment, UnitType } from "@/lib/types";
+import { Batch, Customer, Supplier, Invoice, SupplierBill, Payment, UnitType, AppUser } from "@/lib/types";
 import { getInventoryStatus } from "@/lib/batch-logic";
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+// Dev-only mock credential. The hash is read from .env.local so no known
+// password is shipped in source. Set MOCK_ADMIN_PASSWORD_HASH in .env.local.
+// This data is only seeded into localStorage by local-db.ts and is never used
+// in production API routes.
+const stlPasswordHash =
+  process.env.MOCK_ADMIN_PASSWORD_HASH ??
+  "$2a$10$PLACEHOLDER_HASH_SET_MOCK_ADMIN_PASSWORD_HASH_IN_ENV_LOCAL";
+
+export const mockUsers: AppUser[] = [
+  {
+    id: "usr-1713000000000",
+    tenantId: "stl",
+    name: "Admin User",
+    email: "admin@stl.com",
+    passwordHash: stlPasswordHash,
+    role: "admin",
+    permissions: ["billing", "inventory", "dashboard", "suppliers", "customers", "doctors", "payments", "reports"],
+    createdAt: "2026-04-14T00:00:00Z",
+  },
+];
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 
