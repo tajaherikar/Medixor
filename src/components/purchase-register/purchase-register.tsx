@@ -71,12 +71,15 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Paginate bills on client side
-  const paginatedBills = bills.slice(
+  // Filter out paid bills for display (pending invoices only)
+  const pendingBills = bills.filter((b) => b.paymentStatus !== "paid");
+
+  // Paginate pending bills on client side
+  const paginatedBills = pendingBills.slice(
     pagination.pageIndex * pagination.pageSize,
     (pagination.pageIndex + 1) * pagination.pageSize
   );
-  const totalPages = Math.ceil(bills.length / pagination.pageSize);
+  const totalPages = Math.ceil(pendingBills.length / pagination.pageSize);
 
   const payMutation = useMutation({
     mutationFn: async () => {
@@ -143,6 +146,8 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
             </div>
           ) : bills.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm">No supplier bills recorded yet.</div>
+          ) : pendingBills.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">All supplier bills are fully paid. 🎉</div>
           ) : (
             <Table>
               <TableHeader>
@@ -272,7 +277,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
             </Table>
           )}
         </CardContent>
-        {bills.length > 0 && (
+        {bills.length > 0 && pendingBills.length > 0 && (
           <div className="px-6 py-4 border-t">
             <PaginationControls
               currentPage={pagination.pageIndex}
@@ -280,7 +285,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
               hasNextPage={pagination.pageIndex < totalPages - 1}
               hasPreviousPage={pagination.pageIndex > 0}
               pageSize={pagination.pageSize}
-              total={bills.length}
+              total={pendingBills.length}
               onNextPage={pagination.nextPage}
               onPreviousPage={pagination.previousPage}
             />

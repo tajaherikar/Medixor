@@ -1,4 +1,4 @@
-import { OutstandingTracker } from "@/components/outstanding/outstanding-tracker";
+import { PaymentsDashboard } from "@/components/payments-dashboard/payments-dashboard";
 
 interface PageProps {
   params: Promise<{ tenant: string }>;
@@ -9,7 +9,7 @@ export default async function PaymentsPage({ params }: PageProps) {
 
   return (
     <div className="max-w-6xl">
-      <OutstandingTracker tenant={tenant} />
+      <PaymentsDashboard tenant={tenant} />
     </div>
   );
 }

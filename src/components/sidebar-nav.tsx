@@ -46,7 +46,17 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
   const logoBase64 = useSettingsStore((s) => s.settings.logoBase64);
   const isAdmin = user?.role === "admin";
 
-  const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : navItems;
+  const allowedDefault = ["billing", "inventory"];
+  const customAllowed = user?.permissions ?? [];
+
+  const filteredNavItems = isAdmin
+    ? navItems
+    : navItems.filter((item) =>
+        allowedDefault.includes(item.href) ||
+        (user?.role === "member" && customAllowed.includes(item.href as typeof customAllowed[number]))
+      );
+
+  const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : filteredNavItems;
 
   return (
     <div className="flex flex-col h-full">

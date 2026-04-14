@@ -4,6 +4,11 @@
  * Seeds the Supabase database with demo data.
  * Run with: npx tsx scripts/seed.ts
  *
+ * IMPORTANT: Run database migrations FIRST before running this script!
+ * Migrations: supabase/migrations/003_normalize_user_roles.sql
+ * This adds the permissions column and normalizes user roles.
+ * See DATABASE_MIGRATIONS.md for detailed instructions.
+ *
  * Requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
  * to be set in .env.local (loaded automatically by dotenv below).
  */
@@ -168,7 +173,7 @@ async function main() {
   const users = [
     // ── demo tenant (pre-loaded with sample data) ──────────────────────────
     { id: "usr-1", tenantId: "demo",  name: "Admin User",    email: "admin@medixor.com", passwordHash: adminHash,  role: "admin",  createdAt: "2025-01-01T00:00:00Z" },
-    { id: "usr-2", tenantId: "demo",  name: "Demo User",     email: "demo@medixor.com",  passwordHash: viewerHash, role: "viewer", createdAt: "2025-01-01T00:00:00Z" },
+    { id: "usr-2", tenantId: "demo",  name: "Demo User",     email: "demo@medixor.com",  passwordHash: viewerHash, role: "member", createdAt: "2025-01-01T00:00:00Z" },
     // ── fresh tenant (blank account — no demo data) ────────────────────────
     { id: "usr-3", tenantId: "fresh", name: "Account Owner", email: "admin@fresh.com",   passwordHash: freshHash,  role: "admin",  createdAt: "2025-01-01T00:00:00Z" },
   ];

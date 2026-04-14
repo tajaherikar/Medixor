@@ -151,9 +151,16 @@ export async function getUsers(tenantId: string): Promise<AppUser[]> {
     .from("users")
     .select("*")
     .eq("tenantId", tenantId)
-    .order("createdAt", { ascending: true });
-  if (error) throw error;
-  return data as AppUser[];
+    .order("createdAt", { ascending: false });
+  if (error) {
+    console.error("[db-cloud] getUsers error:", error);
+    throw error;
+  }
+  // Return users with permissions from database or default based on role
+  return (data as any[] | null)?.map((user: any) => ({
+    ...user,
+    permissions: user.permissions || (user.role === "member" ? ["billing", "inventory"] : undefined),
+  })) ?? [];
 }
 
 export async function getUserByEmail(email: string, tenantId: string): Promise<AppUser | null> {
@@ -164,7 +171,12 @@ export async function getUserByEmail(email: string, tenantId: string): Promise<A
     .eq("tenantId", tenantId)
     .maybeSingle();
   if (error) throw error;
-  return data as AppUser | null;
+  if (!data) return null;
+  // Include permissions from database or default based on role
+  return {
+    ...data,
+    permissions: data.permissions || (data.role === "member" ? ["billing", "inventory"] : undefined),
+  } as AppUser;
 }
 
 export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | null> {
@@ -174,7 +186,12 @@ export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | 
     .eq("email", email.toLowerCase())
     .maybeSingle();
   if (error) throw error;
-  return data as AppUser | null;
+  if (!data) return null;
+  // Include permissions from database or default based on role
+  return {
+    ...data,
+    permissions: data.permissions || (data.role === "member" ? ["billing", "inventory"] : undefined),
+  } as AppUser;
 }
 
 // ─── Tenant Settings ──────────────────────────────────────────────────────────

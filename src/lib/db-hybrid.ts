@@ -240,11 +240,14 @@ export async function addPayment(payment: Payment): Promise<void> {
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getUsers(tenantId: string): Promise<AppUser[]> {
-  if (useLocal()) return localDb.getUsers(tenantId);
+  if (useLocal()) {
+    return localDb.getUsers(tenantId);
+  }
   try {
-    return await cloudDb.getUsers(tenantId);
+    const users = await cloudDb.getUsers(tenantId);
+    return users;
   } catch (error) {
-    console.warn('Cloud DB failed, using local:', error);
+    console.warn('[db-hybrid] Cloud DB failed for getUsers, using local:', error);
     return localDb.getUsers(tenantId);
   }
 }
@@ -260,12 +263,14 @@ export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | 
 }
 
 export async function addUser(user: AppUser): Promise<void> {
-  if (useLocal()) return localDb.addUser(user);
+  if (useLocal()) {
+    return localDb.addUser(user);
+  }
   try {
     await cloudDb.addUser(user);
     localDb.addUser(user);
   } catch (error) {
-    console.warn('Cloud DB failed, saving locally:', error);
+    console.warn('[db-hybrid] Cloud DB failed, saving locally:', error);
     localDb.addUser(user);
   }
 }

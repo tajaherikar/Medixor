@@ -451,15 +451,27 @@ export const handlers = [
 
   http.post(`${BASE}/:tenant/users`, async ({ request, params }) => {
     const tenant = params.tenant as string;
-    const body = await request.json() as { name: string; email: string; password: string; role: string };
+    const body = await request.json() as { name: string; email: string; password: string; role: string; permissions?: string[] };
     const passwordHash = await bcrypt.hash(body.password, 10);
+    
+    // Set default permissions for member role
+    let permissions = body.permissions?.filter((p) =>
+      ["billing", "inventory", "dashboard", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+    );
+    
+    // Members get default access to billing and inventory
+    if ((body.role ?? "member") === "member" && (!permissions || permissions.length === 0)) {
+      permissions = ["billing", "inventory"];
+    }
+    
     const newUser = {
       id: `usr-${Date.now()}`,
       tenantId: tenant,
       name: body.name,
       email: body.email.toLowerCase(),
       passwordHash,
-      role: body.role ?? "viewer",
+      role: body.role ?? "member",
+      permissions,
       createdAt: new Date().toISOString(),
     };
     localDb.addUser(newUser as never);
@@ -469,10 +481,21 @@ export const handlers = [
 
   http.patch(`${BASE}/:tenant/users/:id`, async ({ request, params }) => {
     const id = params.id as string;
-    const body = await request.json() as { name?: string; role?: string; password?: string };
+    const body = await request.json() as { name?: string; role?: string; password?: string; permissions?: string[] };
     const updates: Record<string, unknown> = {};
     if (body.name) updates.name = body.name;
     if (body.role) updates.role = body.role;
+    if (body.permissions !== undefined) {
+      const permissions = body.permissions.filter((p) =>
+        ["billing", "inventory", "dashboard", "suppliers", "customers", "doctors", "payments", "reports"].includes(p)
+      );
+      // Members get default access to billing and inventory
+      if ((body.role ?? "member") === "member" && permissions.length === 0) {
+        updates.permissions = ["billing", "inventory"];
+      } else {
+        updates.permissions = permissions;
+      }
+    }
     if (body.password) updates.passwordHash = await bcrypt.hash(body.password, 10);
     localDb.updateUser(id, updates as never);
     return HttpResponse.json({ success: true });

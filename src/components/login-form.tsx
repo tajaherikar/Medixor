@@ -97,19 +97,33 @@ export function LoginForm() {
         setAuthError("Invalid email or password.");
         return;
       }
-      const stored = JSON.parse(localStorage.getItem("medixor-auth") ?? "{}");
-      const tenantId: string = stored?.state?.user?.tenantId ?? "demo";
+      
+      // Get state directly from Zustand store (avoid localStorage async timing issues)
+      const { user } = useAuthStore.getState();
+      const tenantId: string = user?.tenantId ?? "demo";
+      const userRole: string = user?.role ?? "member";
+      const permissions: string[] = user?.permissions ?? ["billing", "inventory"];
       
       // Clear React Query cache on successful login to avoid data leakage
       return import("@/components/providers").then(({ queryClient }) => {
         queryClient.clear();
         
-        // Redirect to original page if available, otherwise dashboard
+        // Determine redirect page based on user permissions
+        let targetPage = "dashboard";
+        if (userRole === "member") {
+          // Check if user has dashboard permission
+          if (!permissions.includes("dashboard")) {
+            // If no dashboard access, redirect to first allowed page (billing or inventory)
+            targetPage = permissions.includes("billing") ? "billing" : "inventory";
+          }
+        }
+        
+        // Redirect to original page if available, otherwise to determined page
         const redirect = searchParams.get('redirect');
         if (redirect && redirect.startsWith(`/${tenantId}/`)) {
           router.replace(redirect);
         } else {
-          router.replace(`/${tenantId}/dashboard`);
+          router.replace(`/${tenantId}/${targetPage}`);
         }
       });
     });

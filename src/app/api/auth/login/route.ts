@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: user.email,
       tenantId: user.tenantId,
-      role: user.role as "admin" | "viewer",
+      role: user.role as "admin" | "member",
+      permissions: user.permissions,
     };
     
     const { passwordHash: _ph, ...safeUser } = user;

@@ -49,7 +49,7 @@ async function setupDemoUsers() {
       name: "Demo User",
       email: "demo@medixor.com",
       passwordHash: viewerHash,
-      role: "viewer",
+      role: "member",
       createdAt: new Date().toISOString(),
     },
     // PharmaOne tenant (if it exists)
