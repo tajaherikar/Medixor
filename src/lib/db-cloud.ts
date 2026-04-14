@@ -219,10 +219,7 @@ export async function upsertSettings(tenantId: string, settings: BusinessSetting
 
 export async function addUser(u: AppUser): Promise<void> {
   const { error } = await supabase.from("users").insert(u);
-  if (error) {
-    console.error("[db-cloud] addUser error:", error);
-    throw error;
-  }
+  if (error) throw error;
 }
 
 export async function updateUser(id: string, updates: Partial<Omit<AppUser, "id">>): Promise<void> {

@@ -339,7 +339,12 @@ export function UsersList({ tenant }: UsersListProps) {
               {users.length} user{users.length !== 1 ? "s" : ""} in this workspace
             </p>
           </div>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Button 
+            size="sm" 
+            onClick={() => setDialogOpen(true)}
+            disabled={!isAdmin}
+            title={!isAdmin ? "Only admins can add team members" : ""}
+          >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add User
           </Button>
@@ -407,7 +412,7 @@ export function UsersList({ tenant }: UsersListProps) {
                           </Button>
                         </>
                       )}
-                      {u.id !== currentUser?.id && (
+                      {isAdmin && u.id !== currentUser?.id && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -456,6 +461,8 @@ export function UsersList({ tenant }: UsersListProps) {
                   type="button"
                   onClick={() => setShowCreatePassword((value) => !value)}
                   className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                  aria-label={showCreatePassword ? "Hide password" : "Show password"}
+                  aria-pressed={showCreatePassword}
                 >
                   {showCreatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -651,6 +658,8 @@ export function UsersList({ tenant }: UsersListProps) {
                   type="button"
                   onClick={() => setShowResetPassword((value) => !value)}
                   className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                  aria-label={showResetPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showResetPassword}
                 >
                   {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

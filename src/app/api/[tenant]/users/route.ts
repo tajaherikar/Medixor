@@ -13,6 +13,10 @@ export async function GET(
   const authResult = await validateTenantAccess(req, tenant);
   if (authResult instanceof NextResponse) return authResult;
   
+  // Only admins can list team members
+  const adminCheck = requireAdmin(authResult);
+  if (adminCheck) return adminCheck;
+  
   try {
     const users = await db.getUsers(tenant);
     return NextResponse.json(users.map(({ passwordHash: _ph, ...u }) => u));

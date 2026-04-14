@@ -97,10 +97,12 @@ export function LoginForm() {
         setAuthError("Invalid email or password.");
         return;
       }
-      const stored = JSON.parse(localStorage.getItem("medixor-auth") ?? "{}");
-      const tenantId: string = stored?.state?.user?.tenantId ?? "demo";
-      const userRole: string = stored?.state?.user?.role ?? "member";
-      const permissions: string[] = stored?.state?.user?.permissions ?? ["billing", "inventory"];
+      
+      // Get state directly from Zustand store (avoid localStorage async timing issues)
+      const { user } = useAuthStore.getState();
+      const tenantId: string = user?.tenantId ?? "demo";
+      const userRole: string = user?.role ?? "member";
+      const permissions: string[] = user?.permissions ?? ["billing", "inventory"];
       
       // Clear React Query cache on successful login to avoid data leakage
       return import("@/components/providers").then(({ queryClient }) => {

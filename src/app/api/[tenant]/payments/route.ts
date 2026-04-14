@@ -34,17 +34,27 @@ export async function POST(
   if (adminCheck) return adminCheck;
   
   const body = await req.json() as Record<string, unknown>;
+  
+  // Validate amount - must be a positive number
+  const amount = Number(body.amount);
+  if (isNaN(amount) || amount <= 0) {
+    return NextResponse.json(
+      { error: "amount must be a positive number" },
+      { status: 400 }
+    );
+  }
+  
   const payment = {
     id: `pay-${Date.now()}`,
     tenantId: tenant,
     createdAt: new Date().toISOString(),
     ...body,
+    amount, // Use validated/coerced amount
   };
   await db.addPayment(payment as never);
 
   // Update invoice/bill paidAmount + paymentStatus
   const invoiceId = body.invoiceId as string | undefined;
-  const amount = body.amount as number | undefined;
   const partyType = body.partyType as string | undefined;
   
   if (invoiceId && amount != null) {

@@ -147,55 +147,83 @@ export function PaymentsDashboard({ tenant }: PaymentsDashboardProps) {
 
   // ─── CUSTOMER LEDGER LOGIC ─────────────────────────────────────────────────────
 
-  const customerLedger = customers.map((c) => {
-    const custInvoices = invoices.filter((i) => i.customerId === c.id);
-    const totalBilled   = custInvoices.reduce((s, i) => s + i.grandTotal, 0);
-    const totalReceived = custInvoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0);
-    const outstanding   = totalBilled - totalReceived;
-    const overdueCount  = custInvoices.filter(
-      (i) => i.paymentStatus !== "paid" && i.dueDate && isAfter(new Date(), parseISO(i.dueDate))
-    ).length;
-    return { ...c, totalBilled, totalReceived, outstanding, overdueCount, invoices: custInvoices };
-  }).filter((c) => c.invoices.length > 0);
+  const customerLedger = useMemo(() => {
+    const now = new Date();
+    return customers.map((c) => {
+      const custInvoices = invoices.filter((i) => i.customerId === c.id);
+      const totalBilled   = custInvoices.reduce((s, i) => s + i.grandTotal, 0);
+      const totalReceived = custInvoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0);
+      const outstanding   = totalBilled - totalReceived;
+      const overdueCount  = custInvoices.filter(
+        (i) => i.paymentStatus !== "paid" && i.dueDate && isAfter(now, parseISO(i.dueDate))
+      ).length;
+      return { ...c, totalBilled, totalReceived, outstanding, overdueCount, invoices: custInvoices };
+    }).filter((c) => c.invoices.length > 0);
+  }, [customers, invoices]);
 
-  const totalOutstandingCust  = customerLedger.reduce((s, c) => s + c.outstanding, 0);
-  const totalBilledAll        = invoices.reduce((s, i) => s + i.grandTotal, 0);
-  const totalGstOutputAll     = invoices.reduce((s, i) => s + i.totalGst, 0);
-  const totalReceivedAll      = invoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0);
-  const overdueInvoices       = invoices.filter(
-    (i) => i.paymentStatus !== "paid" && i.dueDate && isAfter(new Date(), parseISO(i.dueDate))
-  ).length;
-
-  const filteredInvoices = invoices.filter((i) =>
-    (selectedCustomer === "all" || i.customerId === selectedCustomer) &&
-    i.paymentStatus !== "paid"
-  );
+  const { 
+    totalOutstandingCust, 
+    totalBilledAll, 
+    totalGstOutputAll, 
+    totalReceivedAll, 
+    overdueInvoices,
+    filteredInvoices
+  } = useMemo(() => {
+    const now = new Date();
+    return {
+      totalOutstandingCust: customerLedger.reduce((s, c) => s + c.outstanding, 0),
+      totalBilledAll: invoices.reduce((s, i) => s + i.grandTotal, 0),
+      totalGstOutputAll: invoices.reduce((s, i) => s + i.totalGst, 0),
+      totalReceivedAll: invoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0),
+      overdueInvoices: invoices.filter(
+        (i) => i.paymentStatus !== "paid" && i.dueDate && isAfter(now, parseISO(i.dueDate))
+      ).length,
+      filteredInvoices: invoices.filter((i) =>
+        (selectedCustomer === "all" || i.customerId === selectedCustomer) &&
+        i.paymentStatus !== "paid"
+      ),
+    };
+  }, [customerLedger, invoices, selectedCustomer]);
 
   // ─── PURCHASE LEDGER LOGIC ────────────────────────────────────────────────────
 
-  const supplierLedger = suppliers.map((s) => {
-    const supplierBills = bills.filter((b) => b.supplierId === s.id);
-    const totalPurchased = supplierBills.reduce((sum, b) => sum + b.grandTotal, 0);
-    const totalPaid      = supplierBills.reduce((sum, b) => sum + (b.paidAmount ?? 0), 0);
-    const outstanding    = totalPurchased - totalPaid;
-    const overdueCount   = supplierBills.filter(
-      (b) => b.paymentStatus !== "paid" && b.dueDate && isAfter(new Date(), parseISO(b.dueDate))
-    ).length;
-    return { ...s, totalPurchased, totalPaid, outstanding, overdueCount, bills: supplierBills };
-  }).filter((s) => s.bills.length > 0);
+  const supplierLedger = useMemo(() => {
+    const now = new Date();
+    return suppliers.map((s) => {
+      const supplierBills = bills.filter((b) => b.supplierId === s.id);
+      const totalPurchased = supplierBills.reduce((sum, b) => sum + b.grandTotal, 0);
+      const totalPaid      = supplierBills.reduce((sum, b) => sum + (b.paidAmount ?? 0), 0);
+      const outstanding    = totalPurchased - totalPaid;
+      const overdueCount   = supplierBills.filter(
+        (b) => b.paymentStatus !== "paid" && b.dueDate && isAfter(now, parseISO(b.dueDate))
+      ).length;
+      return { ...s, totalPurchased, totalPaid, outstanding, overdueCount, bills: supplierBills };
+    }).filter((s) => s.bills.length > 0);
+  }, [suppliers, bills]);
 
-  const totalOutstandingSupp = supplierLedger.reduce((s, sup) => s + sup.outstanding, 0);
-  const totalPurchasedAll    = bills.reduce((s, b) => s + b.grandTotal, 0);
-  const totalGstAll          = bills.reduce((s, b) => s + b.totalGst, 0);
-  const totalPaidAll         = bills.reduce((s, b) => s + (b.paidAmount ?? 0), 0);
-  const overdueBills         = bills.filter(
-    (b) => b.paymentStatus !== "paid" && b.dueDate && isAfter(new Date(), parseISO(b.dueDate))
-  ).length;
-
-  const filteredBills = bills.filter((b) =>
-    (selectedSupplier === "all" || b.supplierId === selectedSupplier) &&
-    b.paymentStatus !== "paid"
-  );
+  const {
+    totalOutstandingSupp,
+    totalPurchasedAll,
+    totalGstAll,
+    totalPaidAll,
+    overdueBills,
+    filteredBills
+  } = useMemo(() => {
+    const now = new Date();
+    return {
+      totalOutstandingSupp: supplierLedger.reduce((s, sup) => s + sup.outstanding, 0),
+      totalPurchasedAll: bills.reduce((s, b) => s + b.grandTotal, 0),
+      totalGstAll: bills.reduce((s, b) => s + b.totalGst, 0),
+      totalPaidAll: bills.reduce((s, b) => s + (b.paidAmount ?? 0), 0),
+      overdueBills: bills.filter(
+        (b) => b.paymentStatus !== "paid" && b.dueDate && isAfter(now, parseISO(b.dueDate))
+      ).length,
+      filteredBills: bills.filter((b) =>
+        (selectedSupplier === "all" || b.supplierId === selectedSupplier) &&
+        b.paymentStatus !== "paid"
+      ),
+    };
+  }, [supplierLedger, bills, selectedSupplier]);
 
   const isLoading = view === "customer" ? loadingInv : loadingBills;
 
