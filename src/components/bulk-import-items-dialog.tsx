@@ -107,6 +107,7 @@ export function BulkImportDialog({
     setParseResult(null);
     setDelimiter("auto");
     setHasHeader(false);
+    setShowPreview(true);
     setShowAdvancedColumns(false);
     setShowRawAsTable(false);
     setEditableRows([]);

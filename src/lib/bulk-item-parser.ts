@@ -110,11 +110,20 @@ function normalizeDate(dateStr: string): string | null {
  * Try to parse a string as a number
  */
 function parseNumber(val: any): number | null {
-  if (typeof val === 'number') return val > 0 ? val : null;
-  if (!val) return null;
-  
+  if (typeof val === 'number') return val >= 0 ? val : null;
+  if (val === null || val === undefined || val === '') return null;
+
   const num = parseFloat(String(val).replace(/[₹,]/g, ''));
-  return isNaN(num) || num <= 0 ? null : num;
+  return isNaN(num) || num < 0 ? null : num;
+}
+
+/** Like parseNumber but also accepts 0 as a valid GST rate. */
+function parseGstNumber(val: any): number | null {
+  if (typeof val === 'number') return val >= 0 ? val : null;
+  if (val === null || val === undefined || val === '') return null;
+
+  const num = parseFloat(String(val).replace(/[₹,%]/g, '').trim());
+  return isNaN(num) || num < 0 ? null : num;
 }
 
 /**
@@ -136,9 +145,9 @@ function detectUnitType(itemName: string, unitField?: string): UnitType | undefi
  * Detect GST rate from item name or price field (heuristics)
  */
 function detectGstRate(itemName: string, gstField?: string): GstRate | undefined {
-  if (gstField) {
-    const num = parseNumber(gstField);
-    if (num && GST_RATES.includes(num as GstRate)) return num as GstRate;
+  if (gstField !== undefined && gstField !== '') {
+    const num = parseGstNumber(gstField);
+    if (num !== null && GST_RATES.includes(num as GstRate)) return num as GstRate;
   }
   
   // Medical items commonly use 5% or 12%
@@ -152,22 +161,22 @@ function detectGstRate(itemName: string, gstField?: string): GstRate | undefined
 /**
  * Extract scheme pattern if present (e.g., "10+1" from "10+1" or quantity 10, scheme 1)
  */
-function detectScheme(quantityField: string, schemeField?: string): { quantity: number; pattern?: string } | null {
+function detectScheme(quantityField: string, schemeField?: string): { quantity: number; schemeQuantity?: number; pattern?: string } {
   const qty = String(quantityField).trim();
-  
+
   // Format: "10+1" or "10 + 1"
   if (qty.includes('+')) {
-    const [main, scheme] = qty.split('+').map(s => parseNumber(s.trim()));
-    if (main && scheme) return { quantity: main, pattern: `${main}+${scheme}` };
+    const [main, free] = qty.split('+').map(s => parseNumber(s.trim()));
+    if (main && free) return { quantity: main, schemeQuantity: free, pattern: `${main}+${free}` };
   }
-  
+
   // Scheme in separate field
   if (schemeField) {
     const main = parseNumber(quantityField);
-    const scheme = parseNumber(schemeField);
-    if (main && scheme) return { quantity: main, pattern: `${main}+${scheme}` };
+    const free = parseNumber(schemeField);
+    if (main && free) return { quantity: main, schemeQuantity: free, pattern: `${main}+${free}` };
   }
-  
+
   return { quantity: parseNumber(quantityField) || 0 };
 }
 
@@ -241,7 +250,10 @@ export function parseRawItems(rawText: string, options: ParserOptions = {}): Par
         item.expiryDate = normalizeDate(row[2]) || row[2];
         item.mrp = parseNumber(row[3]) || 0;
         item.purchasePrice = parseNumber(row[4]) || 0;
-        item.quantity = parseNumber(row[5]) || 0;
+        const qtyScheme = detectScheme(row[5]);
+        item.quantity = qtyScheme.quantity;
+        if (qtyScheme.schemeQuantity) item.schemeQuantity = qtyScheme.schemeQuantity;
+        if (qtyScheme.pattern) item.schemePattern = qtyScheme.pattern;
 
         if (row.length >= 7 && row[6]) item.unitType = detectUnitType(item.itemName || '', row[6]);
         if (row.length >= 8 && row[7]) item.gstRate = detectGstRate(item.itemName || '', row[7]);
@@ -270,13 +282,13 @@ export function parseRawItems(rawText: string, options: ParserOptions = {}): Par
             case 'purchasePrice':
               item.purchasePrice = parseNumber(val) || 0;
               break;
-            case 'quantity':
+            case 'quantity': {
               const scheme = detectScheme(val);
-              if (scheme) {
-                item.quantity = scheme.quantity;
-                item.schemePattern = scheme.pattern;
-              }
+              item.quantity = scheme.quantity;
+              if (scheme.schemeQuantity) item.schemeQuantity = scheme.schemeQuantity;
+              if (scheme.pattern) item.schemePattern = scheme.pattern;
               break;
+            }
             case 'gstRate':
               item.gstRate = detectGstRate(item.itemName || '', val);
               break;
