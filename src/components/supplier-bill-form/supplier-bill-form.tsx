@@ -92,7 +92,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   const [submitted, setSubmitted] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const isEditing = !!billId && !!initialBill;
@@ -202,8 +202,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
       schemePattern: item.schemePattern || "",
     }));
 
-    // Add all items to form
-    itemsToAdd.forEach((item) => append(item));
+    // Add all items to form in a single call to avoid multiple re-renders
+    append(itemsToAdd);
 
     // Success feedback
     setShowBulkImport(false);
@@ -213,12 +213,12 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     });
   };
 
-  const toggleItemExpanded = (index: number) => {
+  const toggleItemExpanded = (fieldId: string) => {
     const newSet = new Set(expandedItems);
-    if (newSet.has(index)) {
-      newSet.delete(index);
+    if (newSet.has(fieldId)) {
+      newSet.delete(fieldId);
     } else {
-      newSet.add(index);
+      newSet.add(fieldId);
     }
     setExpandedItems(newSet);
   };
@@ -389,7 +389,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
         <CardContent className="space-y-4">
           {fields.map((field, index) => {
             const t = itemTotals[index];
-            const isExpanded = expandedItems.has(index);
+            const isExpanded = expandedItems.has(field.id);
             return (
               <div key={field.id} className="border rounded-lg p-4 bg-slate-50 hover:bg-slate-100 transition-colors">
                 {/* Item Header - Always Visible */}
@@ -407,7 +407,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => toggleItemExpanded(index)}
+                      onClick={() => toggleItemExpanded(field.id)}
                       className="h-8 w-8 p-0"
                     >
                       {isExpanded ? (

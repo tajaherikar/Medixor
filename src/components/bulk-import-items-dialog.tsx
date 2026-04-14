@@ -95,7 +95,9 @@ export function BulkImportDialog({
 
     const validItems = parseResult.items.filter(item => !item._errors || item._errors.length === 0);
     onAddItems?.(validItems);
-    toast.success(`Added ${validItems.length} item(s)`);
+    if (!onAddItems) {
+      toast.success(`Added ${validItems.length} item(s)`);
+    }
     resetForm();
     onOpenChange(false);
   };

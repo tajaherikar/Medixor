@@ -14,7 +14,7 @@ export interface ParsedItem {
   purchasePrice?: number;
   quantity?: number;
   gstRate?: GstRate;
-  unitType?: string;
+  unitType?: UnitType;
   packSize?: number;
   schemeQuantity?: number;
   schemePattern?: string;
@@ -120,7 +120,7 @@ function parseNumber(val: any): number | null {
 /**
  * Detect unit type from item name or explicit field
  */
-function detectUnitType(itemName: string, unitField?: string): string | undefined {
+function detectUnitType(itemName: string, unitField?: string): UnitType | undefined {
   if (unitField) {
     const match = UNIT_TYPES.find(u => u.toLowerCase() === unitField.toLowerCase());
     if (match) return match;
@@ -235,16 +235,16 @@ export function parseRawItems(rawText: string, options: ParserOptions = {}): Par
     // Smart field detection if no mapping provided
     if (!fieldMapping) {
       // Attempt: itemName | batchNo | expiry | mrp | cost | qty [| unitType] [| gst]
-      if (row.length >= 5) {
+      if (row.length >= 6) {
         item.itemName = row[0];
         item.batchNumber = row[1];
         item.expiryDate = normalizeDate(row[2]) || row[2];
         item.mrp = parseNumber(row[3]) || 0;
         item.purchasePrice = parseNumber(row[4]) || 0;
         item.quantity = parseNumber(row[5]) || 0;
-        
-        if (row[6]) item.unitType = detectUnitType(item.itemName || '', row[6]);
-        if (row[7]) item.gstRate = detectGstRate(item.itemName || '', row[7]);
+
+        if (row.length >= 7 && row[6]) item.unitType = detectUnitType(item.itemName || '', row[6]);
+        if (row.length >= 8 && row[7]) item.gstRate = detectGstRate(item.itemName || '', row[7]);
       }
     } else {
       // Use provided mapping

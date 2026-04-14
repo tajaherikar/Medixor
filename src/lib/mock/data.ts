@@ -3,8 +3,13 @@ import { getInventoryStatus } from "@/lib/batch-logic";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
-// Bcrypt hash of "stl123"
-const stlPasswordHash = "$2a$10$hZiYvn1x6.7pKhYvZ5s0K.LYwlqzSGQe8Rz8L5K8vN9Q2K8M8a4pW";
+// Dev-only mock credential. The hash is read from .env.local so no known
+// password is shipped in source. Set MOCK_ADMIN_PASSWORD_HASH in .env.local.
+// This data is only seeded into localStorage by local-db.ts and is never used
+// in production API routes.
+const stlPasswordHash =
+  process.env.MOCK_ADMIN_PASSWORD_HASH ??
+  "$2a$10$PLACEHOLDER_HASH_SET_MOCK_ADMIN_PASSWORD_HASH_IN_ENV_LOCAL";
 
 export const mockUsers: AppUser[] = [
   {
