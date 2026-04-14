@@ -32,6 +32,7 @@ import {
   mockInvoices,
   mockSupplierBills,
   mockPayments,
+  mockUsers,
 } from "@/lib/mock/data";
 import { getInventoryStatus } from "@/lib/batch-logic";
 
@@ -80,7 +81,7 @@ function seed(): void {
   write(KEYS.supplierBills, mockSupplierBills);
   write(KEYS.payments,      mockPayments);
   write(KEYS.doctors,       []);
-  write(KEYS.users,         []);
+  write(KEYS.users,         mockUsers);
   write(KEYS.settings,      [{ tenantId: 'default', ...defaultBusinessSettings }]);
 
   localStorage.setItem(KEYS.seeded, "1");

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Batch, BatchSelectionStrategy, UnitType } from "@/lib/types";
 import { sortByFEFO, sortByFIFO, allocateQuantity } from "@/lib/batch-logic";
 import { format, parseISO } from "date-fns";
+import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +128,36 @@ export function BatchSelector({ tenant, strategy, onAdd }: BatchSelectorProps) {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Info Message: No Items in Inventory */}
+        {uniqueItems.length === 0 && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="pt-1">
+              <div className="flex gap-3">
+                <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <p className="text-sm text-blue-900 font-medium">No items in inventory</p>
+                  <p className="text-xs text-blue-800">
+                    To create an invoice, you need to first add items to your inventory via the supplier bill page.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                    <Link href={`/${tenant}/suppliers`}>
+                      <Button type="button" size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 h-8 px-2 border border-blue-600">
+                        + Create Supplier Bill
+                      </Button>
+                    </Link>
+                    <span className="text-xs text-blue-700 flex items-center">or</span>
+                    <Link href={`/${tenant}/settings`}>
+                      <Button type="button" size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 h-8 px-2 border border-blue-600">
+                        ⚙️ Enable Quick Bill in Settings
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Item Search */}
         <div className="space-y-1">
           <Label>Item Name</Label>

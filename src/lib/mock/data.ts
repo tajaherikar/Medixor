@@ -1,5 +1,23 @@
-import { Batch, Customer, Supplier, Invoice, SupplierBill, Payment, UnitType } from "@/lib/types";
+import { Batch, Customer, Supplier, Invoice, SupplierBill, Payment, UnitType, AppUser } from "@/lib/types";
 import { getInventoryStatus } from "@/lib/batch-logic";
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+// Bcrypt hash of "stl123"
+const stlPasswordHash = "$2a$10$hZiYvn1x6.7pKhYvZ5s0K.LYwlqzSGQe8Rz8L5K8vN9Q2K8M8a4pW";
+
+export const mockUsers: AppUser[] = [
+  {
+    id: "usr-1713000000000",
+    tenantId: "stl",
+    name: "Admin User",
+    email: "admin@stl.com",
+    passwordHash: stlPasswordHash,
+    role: "admin",
+    permissions: ["billing", "inventory", "dashboard", "suppliers", "customers", "doctors", "payments", "reports"],
+    createdAt: "2026-04-14T00:00:00Z",
+  },
+];
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 
