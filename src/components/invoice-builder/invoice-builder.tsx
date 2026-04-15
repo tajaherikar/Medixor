@@ -74,10 +74,24 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("unpaid");
   const [paidAmount, setPaidAmount] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+
+  function resetForm() {
+    setLineItems([]);
+    setCustomerId("");
+    setCustomerDiscountValue(0);
+    setPaymentStatus("unpaid");
+    setPaidAmount(0);
+    setReferredBy("");
+    setReferredById("");
+    setSaved(false);
+    setSaveError(null);
+    setLastSavedInvoice(null);
+  }
 
   // Browser beforeunload warning for unsaved changes
   const hasUnsavedChanges = customerId && lineItems.length > 0 && !saved;
@@ -196,11 +210,10 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const grandTotal = invoiceCalc.grandTotal;
 
   async function handleSave() {
-    // In Quick Bill mode, customer name defaults to "Walk-in Customer" if empty
-    // In Full Bill mode, customerId must be a valid customer ID
     if (lineItems.length === 0) return;
     if (!isQuickBill && !customerId) return;
     
+    setSaving(true);
     setSaveError(null);
     const payload = {
       tenantId: tenant,
@@ -243,6 +256,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       const err = await res.json().catch(() => ({}));
       const msg = (err as { error?: string }).error ?? `Save failed (${res.status}). Please try again.`;
       setSaveError(msg);
+      setSaving(false);
       toast.error("Failed to save invoice", { description: msg });
       return;
     }
@@ -257,17 +271,8 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       description: `₹${grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })} · ${selectedCustomer?.name ?? ""}`,
     });
     setSaved(true);
-    setTimeout(() => {
-      setLineItems([]);
-      setCustomerId("");
-      setCustomerDiscountValue(0);
-      setPaymentStatus("unpaid");
-      setPaidAmount(0);
-      setReferredBy("");
-      setReferredById("");
-      setSaved(false);
-      // keep lastSavedInvoice so user can still print after reset
-    }, 1500);
+    setSaving(false);
+    // Don't auto-reset — user must explicitly start a new invoice so they have time to print
   }
 
   return (
@@ -703,29 +708,54 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
               {/* Actions */}
               <Separator className="w-full" />
-              <div className="flex flex-wrap items-center gap-3 w-full justify-end pt-1">
-                {saveError && (
-                  <p className="text-sm text-destructive mr-auto">{saveError}</p>
-                )}
-                {lastSavedInvoice && (
+              {saved && lastSavedInvoice ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full pt-1">
+                  <div className="flex items-center gap-2 mr-auto">
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-green-100 shrink-0">
+                      <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-green-700">Invoice saved</p>
+                      <p className="text-xs text-muted-foreground">
+                        ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        {selectedCustomer?.name ? ` · ${selectedCustomer.name}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      className="flex-1 sm:flex-none"
+                      onClick={() => setPrintInvoice(lastSavedInvoice)}
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Print Invoice
+                    </Button>
+                    <Button
+                      className="flex-1 sm:flex-none"
+                      onClick={resetForm}
+                    >
+                      New Invoice
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3 w-full justify-end pt-1">
+                  {saveError && (
+                    <p className="text-sm text-destructive mr-auto">{saveError}</p>
+                  )}
                   <Button
-                    variant="outline"
+                    onClick={handleSave}
+                    disabled={(isQuickBill ? false : !customerId) || lineItems.length === 0 || saving || saved || !isAdmin}
                     className="w-full sm:w-auto"
-                    onClick={() => setPrintInvoice(lastSavedInvoice)}
+                    title={!isAdmin ? "Admin access required" : undefined}
                   >
-                    <Printer className="h-4 w-4 mr-2" />
-                    Print Last Invoice
+                    {saving ? "Saving…" : "Save Invoice"}
                   </Button>
-                )}
-                <Button
-                  onClick={handleSave}
-                  disabled={(isQuickBill ? false : !customerId) || lineItems.length === 0 || saved || !isAdmin}
-                  className="w-full sm:w-auto"
-                  title={!isAdmin ? "Admin access required" : undefined}
-                >
-                  {saved ? "Invoice Saved ✓" : "Save Invoice"}
-                </Button>
-              </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -736,13 +766,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
         onSave={handleSave}
         onDiscard={() => {
           setShowUnsavedModal(false);
-          setLineItems([]);
-          setCustomerId("");
-          setCustomerDiscountValue(0);
-          setPaymentStatus("unpaid");
-          setPaidAmount(0);
-          setReferredBy("");
-          setReferredById("");
+          resetForm();
         }}
         title="Unsaved Invoice"
         description="You have unsaved changes to this invoice. Save before leaving?"
