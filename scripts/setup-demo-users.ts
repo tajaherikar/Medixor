@@ -26,11 +26,17 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function setupDemoUsers() {
   console.log("🚀 Setting up demo users in Supabase...\n");
 
-  // Hash passwords
+  // Hash passwords — read sensitive tenant passwords from env vars, never hardcode.
   const adminHash = await bcrypt.hash("medixor123", 10);
   const viewerHash = await bcrypt.hash("demo123", 10);
   const pharmaoneHash = await bcrypt.hash("PharmaOne@2026", 10);
-  const medreliefHash = await bcrypt.hash("MedRelief@2026", 10);
+
+  const medreliefPassword = process.env.MEDRELIEF_ADMIN_PASSWORD;
+  if (!medreliefPassword) {
+    console.error("❌ MEDRELIEF_ADMIN_PASSWORD is not set in .env.local");
+    process.exit(1);
+  }
+  const medreliefHash = await bcrypt.hash(medreliefPassword, 10);
 
   const users = [
     // Demo tenant
@@ -67,7 +73,7 @@ async function setupDemoUsers() {
       id: "usr-medrelief",
       tenantId: "medrelief",
       name: "MedRelief Admin",
-      email: "admin@medrelief.com",
+      email: process.env.MEDRELIEF_ADMIN_USERNAME ?? "Med24",
       passwordHash: medreliefHash,
       role: "admin",
       createdAt: new Date().toISOString(),
@@ -105,7 +111,7 @@ async function setupDemoUsers() {
   console.log("📧 admin@medixor.com  │ 🔑 medixor123");
   console.log("📧 demo@medixor.com   │ 🔑 demo123");
   console.log("📧 admin@pharmaone.com│ 🔑 PharmaOne@2026");
-  console.log("📧 admin@medrelief.com│ 🔑 MedRelief@2026");
+  console.log(`👤 ${process.env.MEDRELIEF_ADMIN_USERNAME ?? "Med24"}  │ 🔑 (from MEDRELIEF_ADMIN_PASSWORD env var)`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 

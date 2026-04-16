@@ -57,6 +57,13 @@ Medixor-Offline-*/
 *CREDENTIALS*.txt
 *credentials*.txt
 
+# Tenant onboarding docs contain credentials — keep off VCS
+MEDRELIEF-ONBOARDING.md
+*-ONBOARDING.md
+
+# One-shot credential update scripts
+scripts/update-*-credentials.ts
+
 # Electron Desktop App
 medixor-app/
 dist-electron/
