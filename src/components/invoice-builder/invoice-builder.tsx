@@ -31,6 +31,7 @@ import { Trash2, Printer, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { InvoicePrintModal } from "@/components/reports/invoice-print-modal";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
+import { ValidationErrorAlert } from "@/components/ui/validation-error-alert";
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
 import { useAuthStore, useSettingsStore } from "@/lib/stores";
@@ -76,6 +77,11 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<{
+    discrepancies: string[];
+    expected?: Record<string, number>;
+    actual?: Record<string, number>;
+  } | null>(null);
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -215,6 +221,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     
     setSaving(true);
     setSaveError(null);
+    setValidationError(null);
     const payload = {
       tenantId: tenant,
       customerId: isQuickBill ? "" : customerId,

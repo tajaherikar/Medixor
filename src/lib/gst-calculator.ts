@@ -350,3 +350,86 @@ export function validateInvoiceCalculation(invoice: InvoiceCalculation): {
     discrepancies,
   };
 }
+
+/**
+ * Validates a saved Invoice object (from database)
+ * Checks: GST calculations, grand total, discount validity
+ * 
+ * @param invoice - The Invoice object to validate
+ * @returns Validation result with details and discrepancies
+ */
+export function validateInvoice(invoice: {
+  subtotal: number;
+  customerDiscountAmount: number;
+  totalGst: number;
+  grandTotal: number;
+}) {
+  const discrepancies: string[] = [];
+
+  // Check 1: Customer discount validity
+  const discountValid = invoice.customerDiscountAmount >= 0 && invoice.customerDiscountAmount <= invoice.subtotal;
+  if (!discountValid) {
+    discrepancies.push(
+      `Invalid customer discount: ₹${invoice.customerDiscountAmount.toFixed(2)} ` +
+      `(should be between ₹0 and ₹${invoice.subtotal.toFixed(2)})`
+    );
+  }
+
+  // Check 2: Grand total calculation
+  const expectedGrandTotal = roundMoney(
+    addMoney(
+      invoice.subtotal - invoice.customerDiscountAmount,
+      invoice.totalGst
+    )
+  );
+  const grandTotalValid = validateMoneyTotal(expectedGrandTotal, invoice.grandTotal, 0.01);
+  if (!grandTotalValid) {
+    discrepancies.push(
+      `Grand total mismatch: Expected ₹${expectedGrandTotal.toFixed(2)}, ` +
+      `got ₹${invoice.grandTotal.toFixed(2)}`
+    );
+  }
+
+  return {
+    isValid: discountValid && grandTotalValid,
+    discrepancies,
+    expectedGrandTotal,
+    actualGrandTotal: invoice.grandTotal,
+  };
+}
+
+/**
+ * Validates a saved SupplierBill object (from database)
+ * Simplified validation since bills may not have GST breakdown
+ * Checks: Basic grand total calculation
+ * 
+ * @param bill - The SupplierBill object to validate
+ * @returns Validation result with discrepancies
+ */
+export function validateSupplierBill(bill: {
+  taxableAmount: number;
+  totalGst: number;
+  grandTotal: number;
+}) {
+  const discrepancies: string[] = [];
+
+  // Calculate expected grand total
+  const expectedGrandTotal = roundMoney(
+    addMoney(bill.taxableAmount, bill.totalGst)
+  );
+  
+  const grandTotalValid = validateMoneyTotal(expectedGrandTotal, bill.grandTotal, 0.01);
+  if (!grandTotalValid) {
+    discrepancies.push(
+      `Grand total mismatch: Expected ₹${expectedGrandTotal.toFixed(2)}, ` +
+      `got ₹${bill.grandTotal.toFixed(2)}`
+    );
+  }
+
+  return {
+    isValid: grandTotalValid,
+    discrepancies,
+    expectedGrandTotal,
+    actualGrandTotal: bill.grandTotal,
+  };
+}

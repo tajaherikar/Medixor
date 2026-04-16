@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { getInventoryStatus } from "@/lib/batch-logic";
 import { localDb } from "@/lib/local-db";
+import { validateInvoice, validateSupplierBill } from "@/lib/gst-calculator";
 import { Batch, BusinessSettings } from "@/lib/types";
 import bcrypt from "bcryptjs";
 
@@ -167,6 +168,27 @@ export const handlers = [
   http.post(`${BASE}/:tenant/invoices`, async ({ request, params }) => {
     const tenant = params.tenant as string;
     const body = await request.json() as Record<string, unknown>;
+    
+    // Validate invoice before saving
+    const validation = validateInvoice({
+      subtotal: (body.subtotal as number) ?? 0,
+      customerDiscountAmount: (body.customerDiscountAmount as number) ?? 0,
+      totalGst: (body.totalGst as number) ?? 0,
+      grandTotal: (body.grandTotal as number) ?? 0,
+    });
+
+    if (!validation.isValid) {
+      return HttpResponse.json(
+        {
+          error: "Invoice validation failed",
+          discrepancies: validation.discrepancies,
+          expected: { grandTotal: validation.expectedGrandTotal },
+          actual: { grandTotal: validation.actualGrandTotal },
+        },
+        { status: 400 }
+      );
+    }
+
     const newInvoice: Record<string, unknown> = {
       id: `inv-${Date.now()}`,
       tenantId: tenant,
@@ -267,14 +289,35 @@ export const handlers = [
       schemePattern?: string;
     }>;
     const taxableAmount = items.reduce((sum, i) => sum + i.purchasePrice * i.quantity, 0);
+    const totalGst = (body.totalGst as number) ?? 0;
+    const grandTotal = (body.grandTotal as number) ?? taxableAmount + totalGst;
+
+    // Validate bill before saving
+    const validation = validateSupplierBill({
+      taxableAmount,
+      totalGst,
+      grandTotal,
+    });
+
+    if (!validation.isValid) {
+      return HttpResponse.json(
+        {
+          error: "Supplier bill validation failed",
+          discrepancies: validation.discrepancies,
+          expected: { grandTotal: validation.expectedGrandTotal },
+          actual: { grandTotal: validation.actualGrandTotal },
+        },
+        { status: 400 }
+      );
+    }
 
     const newBill: Record<string, unknown> = {
       id: `sbill-${Date.now()}`,
       tenantId: tenant,
       createdAt: new Date().toISOString(),
       taxableAmount,
-      totalGst: 0,
-      grandTotal: taxableAmount,
+      totalGst,
+      grandTotal,
       paymentStatus: "pending",
       paidAmount: 0,
       ...body,
@@ -315,6 +358,25 @@ export const handlers = [
     const tenant = params.tenant as string;
     const billId = params.billId as string;
     const body = await request.json() as Record<string, unknown>;
+
+    // Validate bill before updating
+    const validation = validateSupplierBill({
+      taxableAmount: (body.taxableAmount as number) ?? 0,
+      totalGst: (body.totalGst as number) ?? 0,
+      grandTotal: (body.grandTotal as number) ?? 0,
+    });
+
+    if (!validation.isValid) {
+      return HttpResponse.json(
+        {
+          error: "Supplier bill validation failed",
+          discrepancies: validation.discrepancies,
+          expected: { grandTotal: validation.expectedGrandTotal },
+          actual: { grandTotal: validation.actualGrandTotal },
+        },
+        { status: 400 }
+      );
+    }
 
     localDb.updateSupplierBill(billId, body as never);
 
