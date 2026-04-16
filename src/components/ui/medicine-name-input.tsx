@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useId, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { searchMedicineNames } from "@/lib/medicine-names";
+import { searchMedicineNames, buildMedicineSearchIndex } from "@/lib/medicine-names";
 
 interface MedicineNameInputProps {
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
+  name?: string;
   inventoryNames?: string[];
   placeholder?: string;
   className?: string;
@@ -14,21 +16,53 @@ interface MedicineNameInputProps {
   disabled?: boolean;
 }
 
-export function MedicineNameInput({
-  value,
-  onChange,
-  inventoryNames = [],
-  placeholder = "e.g., Paracetamol 500mg",
-  className,
-  id,
-  disabled,
-}: MedicineNameInputProps) {
+export const MedicineNameInput = React.forwardRef<HTMLInputElement, MedicineNameInputProps>(
+  function MedicineNameInput(
+    {
+      value,
+      onChange,
+      onBlur,
+      name,
+      inventoryNames = [],
+      placeholder = "e.g., Paracetamol 500mg",
+      className,
+      id,
+      disabled,
+    },
+    forwardedRef
+  ) {
+  // Issue 1: per-instance IDs so FieldArray rows never share the same DOM id
+  const uid = useId();
+  const listboxId = `ml${uid}suggestions`;
+  const optionId = (idx: number) => `ml${uid}option${idx}`;
+
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Internal ref for focus management; forwarded ref is merged via callback
+  const internalRef = useRef<HTMLInputElement>(null);
+  const setInputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      (internalRef as React.MutableRefObject<HTMLInputElement | null>).current = node;
+      if (typeof forwardedRef === "function") forwardedRef(node);
+      else if (forwardedRef) (forwardedRef as React.MutableRefObject<HTMLInputElement | null>).current = node;
+    },
+    [forwardedRef]
+  );
   const listRef = useRef<HTMLUListElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Issue 2: memoize normalized inventory set — O(1) lookup instead of O(n) per render
+  const inventorySet = useMemo(
+    () => new Set(inventoryNames.map(n => n.toLowerCase())),
+    [inventoryNames]
+  );
+
+  // Issue 5: pre-build search index only when inventoryNames changes, not on every keystroke
+  const searchIndex = useMemo(
+    () => buildMedicineSearchIndex(inventoryNames),
+    [inventoryNames]
+  );
 
   const updateSuggestions = useCallback(
     (query: string) => {
@@ -37,12 +71,13 @@ export function MedicineNameInput({
         setOpen(false);
         return;
       }
-      const results = searchMedicineNames(query, inventoryNames, 10);
+      // Pass pre-built index to avoid rebuilding on every keystroke (Issue 5)
+      const results = searchMedicineNames(query, [], 10, searchIndex);
       setSuggestions(results);
       setOpen(results.length > 0);
       setActiveIndex(-1);
     },
-    [inventoryNames]
+    [searchIndex]
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,12 +86,12 @@ export function MedicineNameInput({
     updateSuggestions(val);
   };
 
-  const selectSuggestion = (name: string) => {
-    onChange(name);
+  const selectSuggestion = (suggestedName: string) => {
+    onChange(suggestedName);
     setSuggestions([]);
     setOpen(false);
     setActiveIndex(-1);
-    inputRef.current?.focus();
+    internalRef.current?.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -109,27 +144,28 @@ export function MedicineNameInput({
     );
   };
 
-  // Check if name came from existing inventory (show badge)
-  const isFromInventory = (name: string) =>
-    inventoryNames.some(n => n.toLowerCase() === name.toLowerCase());
+  // Issue 2: O(1) Set lookup instead of linear .some() scan on every render
+  const isFromInventory = (n: string) => inventorySet.has(n.toLowerCase());
 
   return (
     <div ref={containerRef} className="relative w-full">
       <input
-        ref={inputRef}
+        ref={setInputRef}
         id={id}
+        name={name}
         type="text"
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
+        onBlur={onBlur}
         onFocus={() => value.length >= 2 && updateSuggestions(value)}
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"
         aria-autocomplete="list"
         aria-expanded={open}
-        aria-controls="medicine-suggestions"
-        aria-activedescendant={activeIndex >= 0 ? `medicine-suggestion-${activeIndex}` : undefined}
+        aria-controls={listboxId}
+        aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
         className={cn(
           "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50",
           className
@@ -139,19 +175,19 @@ export function MedicineNameInput({
       {open && suggestions.length > 0 && (
         <ul
           ref={listRef}
-          id="medicine-suggestions"
+          id={listboxId}
           role="listbox"
           className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-border bg-popover shadow-md text-sm"
         >
-          {suggestions.map((name, idx) => (
+          {suggestions.map((suggestedName, idx) => (
             <li
-              key={name}
-              id={`medicine-suggestion-${idx}`}
+              key={suggestedName}
+              id={optionId(idx)}
               role="option"
               aria-selected={idx === activeIndex}
               onMouseDown={(e) => {
                 e.preventDefault();
-                selectSuggestion(name);
+                selectSuggestion(suggestedName);
               }}
               onMouseEnter={() => setActiveIndex(idx)}
               className={cn(
@@ -159,8 +195,8 @@ export function MedicineNameInput({
                 idx === activeIndex && "bg-accent text-accent-foreground"
               )}
             >
-              <span>{highlight(name, value)}</span>
-              {isFromInventory(name) && (
+              <span>{highlight(suggestedName, value)}</span>
+              {isFromInventory(suggestedName) && (
                 <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex-shrink-0">
                   In Stock
                 </span>
@@ -171,4 +207,4 @@ export function MedicineNameInput({
       )}
     </div>
   );
-}
+});

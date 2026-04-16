@@ -706,15 +706,36 @@ export const INDIAN_MEDICINE_NAMES: string[] = [
  *   2. Contains match
  *   3. All search words present anywhere in name
  */
+
+/** Pre-normalized entry used by the search index. */
+export interface MedicineSearchEntry {
+  original: string;
+  lower: string;
+}
+
+/**
+ * Build a normalized search index from optional inventory names merged with the
+ * built-in medicine list.  Callers should memoize this (e.g. with `useMemo`)
+ * and pass the result to `searchMedicineNames` so the O(n) normalization work
+ * is only done when `inventoryNames` actually changes, not on every keystroke.
+ */
+export function buildMedicineSearchIndex(inventoryNames: string[] = []): MedicineSearchEntry[] {
+  const merged = Array.from(new Set([...inventoryNames, ...INDIAN_MEDICINE_NAMES]));
+  return merged.map(name => ({ original: name, lower: name.toLowerCase() }));
+}
+
 export function searchMedicineNames(
   query: string,
   inventoryNames: string[] = [],
-  limit = 10
+  limit = 10,
+  /** Pass a pre-built index from {@link buildMedicineSearchIndex} to avoid
+   *  rebuilding the normalized list on every keystroke. */
+  index?: MedicineSearchEntry[]
 ): string[] {
   const q = query.trim().toLowerCase();
   if (!q || q.length < 2) return [];
 
-  const allNames = Array.from(new Set([...inventoryNames, ...INDIAN_MEDICINE_NAMES]));
+  const entries = index ?? buildMedicineSearchIndex(inventoryNames);
 
   const words = q.split(/\s+/);
 
@@ -722,14 +743,13 @@ export function searchMedicineNames(
   const tier2: string[] = []; // contains query as substring
   const tier3: string[] = []; // all words found in name
 
-  for (const name of allNames) {
-    const lower = name.toLowerCase();
+  for (const { original, lower } of entries) {
     if (lower.startsWith(q)) {
-      tier1.push(name);
+      tier1.push(original);
     } else if (lower.includes(q)) {
-      tier2.push(name);
+      tier2.push(original);
     } else if (words.every(w => lower.includes(w))) {
-      tier3.push(name);
+      tier3.push(original);
     }
   }
 

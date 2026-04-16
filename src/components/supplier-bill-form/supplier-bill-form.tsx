@@ -110,17 +110,17 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   });
 
   // Fetch existing inventory item names for autocomplete suggestions
-  const { data: inventoryItems = [] } = useQuery<{ itemName: string }[]>({
+  const { data: inventoryItemNames = [] } = useQuery<{ itemName: string }[], Error, string[]>({
     queryKey: ["inventory-names", tenant],
     queryFn: async () => {
       const res = await fetch(`/api/${tenant}/inventory`);
       if (!res.ok) return [];
       return res.json();
     },
-    select: (data) => Array.from(new Set(data.map((b: { itemName: string }) => b.itemName))).map(name => ({ itemName: name as string })),
+    select: (data) =>
+      Array.from(new Set(data.map((b) => b.itemName))),
     staleTime: 60_000,
   });
-  const inventoryItemNames = inventoryItems.map(i => i.itemName);
 
   const {
     register,
@@ -449,8 +449,11 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                         name={`items.${index}.itemName`}
                         render={({ field }) => (
                           <MedicineNameInput
+                            ref={field.ref}
+                            name={field.name}
                             value={field.value}
                             onChange={field.onChange}
+                            onBlur={field.onBlur}
                             inventoryNames={inventoryItemNames}
                             placeholder="e.g., Paracetamol 500mg"
                           />
