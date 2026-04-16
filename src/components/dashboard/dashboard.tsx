@@ -324,7 +324,7 @@ export function Dashboard({ tenant }: DashboardProps) {
                   <div className="shrink-0 ml-3">
                     <span
                       className={`text-sm font-bold tabular-nums ${
-                        item.total === 0 ? "text-muted-foreground" : "text-orange-600"
+                        item.total === 0 ? "text-muted-foreground" : "text-orange-700"
                       }`}
                     >
                       {item.total} units

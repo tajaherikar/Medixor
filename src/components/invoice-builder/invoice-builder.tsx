@@ -75,6 +75,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("unpaid");
   const [paidAmount, setPaidAmount] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<{
     discrepancies: string[];
@@ -84,6 +85,19 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [lastSavedInvoice, setLastSavedInvoice] = useState<Invoice | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+
+  function resetForm() {
+    setLineItems([]);
+    setCustomerId("");
+    setCustomerDiscountValue(0);
+    setPaymentStatus("unpaid");
+    setPaidAmount(0);
+    setReferredBy("");
+    setReferredById("");
+    setSaved(false);
+    setSaveError(null);
+    setLastSavedInvoice(null);
+  }
 
   // Browser beforeunload warning for unsaved changes
   const hasUnsavedChanges = customerId && lineItems.length > 0 && !saved;
@@ -202,11 +216,10 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const grandTotal = invoiceCalc.grandTotal;
 
   async function handleSave() {
-    // In Quick Bill mode, customer name defaults to "Walk-in Customer" if empty
-    // In Full Bill mode, customerId must be a valid customer ID
     if (lineItems.length === 0) return;
     if (!isQuickBill && !customerId) return;
     
+    setSaving(true);
     setSaveError(null);
     setValidationError(null);
     const payload = {
@@ -249,19 +262,9 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = (err as { error?: string }).error ?? `Save failed (${res.status}). Please try again.`;
-      
-      // Check if this is a validation error
-      if (err.discrepancies && Array.isArray(err.discrepancies)) {
-        setValidationError({
-          discrepancies: err.discrepancies,
-          expected: err.expected,
-          actual: err.actual,
-        });
-        toast.error("Invoice validation failed", { description: "Please review the errors below." });
-      } else {
-        setSaveError(msg);
-        toast.error("Failed to save invoice", { description: msg });
-      }
+      setSaveError(msg);
+      setSaving(false);
+      toast.error("Failed to save invoice", { description: msg });
       return;
     }
     // Invalidate caches so Reports and Inventory reflect changes immediately
@@ -275,154 +278,161 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
       description: `₹${grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })} · ${selectedCustomer?.name ?? ""}`,
     });
     setSaved(true);
-    setTimeout(() => {
-      setLineItems([]);
-      setCustomerId("");
-      setCustomerDiscountValue(0);
-      setPaymentStatus("unpaid");
-      setPaidAmount(0);
-      setReferredBy("");
-      setReferredById("");
-      setSaved(false);
-      // keep lastSavedInvoice so user can still print after reset
-    }, 1500);
+    setSaving(false);
+    // Don't auto-reset — user must explicitly start a new invoice so they have time to print
   }
 
   return (
-    <div className="space-y-6">
-      {/* Quick Bill Toggle - visible only if setting enabled */}
-      {settings.enableQuickBilling && (
-        <Card>
-          <CardContent className="px-6 py-4 flex items-center justify-between">
+    <div className={`space-y-5${lineItems.length > 0 ? " pb-24" : ""}`}>
+
+      {/* ── Step 1: Bill To ─────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold">Invoice Mode</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isQuickBill ? "Quick Bill — minimal customer details" : "Full Bill — complete customer information"}
+              <CardTitle className="text-base">Bill To</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Select who this invoice is for</p>
+            </div>
+            {settings.enableQuickBilling && (
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs text-muted-foreground">
+                  {isQuickBill ? "Quick Bill" : "Full Bill"}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isQuickBill}
+                  aria-label="Toggle invoice mode"
+                  onClick={() => setIsQuickBill(!isQuickBill)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                    isQuickBill ? "bg-primary" : "bg-muted"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform ${
+                      isQuickBill ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label>Customer {isQuickBill ? "(Quick)" : "*"}</Label>
+              {isQuickBill ? (
+                <Input
+                  placeholder="Enter customer name or reference"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  className="text-sm"
+                />
+              ) : (
+                <Select value={customerId} onValueChange={handleCustomerChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {!isQuickBill && selectedCustomer && (selectedCustomer.gstNumber || selectedCustomer.licenseNumber || selectedCustomer.address) && (
+                <div className="flex flex-wrap gap-3 mt-1">
+                  {selectedCustomer.gstNumber && (
+                    <span className="text-xs text-muted-foreground">
+                      GST: <span className="font-mono font-medium text-foreground">{selectedCustomer.gstNumber}</span>
+                    </span>
+                  )}
+                  {selectedCustomer.licenseNumber && (
+                    <span className="text-xs text-muted-foreground">
+                      License: <span className="font-mono font-medium text-foreground">{selectedCustomer.licenseNumber}</span>
+                    </span>
+                  )}
+                  {selectedCustomer.address && (
+                    <span className="text-xs text-muted-foreground">{selectedCustomer.address}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label>Reference <span className="text-muted-foreground font-normal">(Doctor / Lab / Consultant)</span></Label>
+              <Select
+                value={referredById || "__none__"}
+                onValueChange={(v) => {
+                  if (v === "__none__") { setReferredById(""); setReferredBy(""); return; }
+                  setReferredById(v);
+                  const doc = doctors.find((d) => d.id === v);
+                  setReferredBy(doc?.name ?? "");
+                }}
+                disabled={isQuickBill}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={isQuickBill ? "N/A in Quick Bill mode" : "No reference / Walk-in"} />
+                </SelectTrigger>
+                {!isQuickBill && (
+                  <SelectContent>
+                    <SelectItem value="__none__">No reference / Walk-in</SelectItem>
+                    {doctors.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}{" "}
+                        <span className="text-muted-foreground text-xs capitalize">({d.type})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                )}
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Step 2: Add Items ────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Add Items</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Search inventory and add medicines to the invoice</p>
+            </div>
+            <div className="space-y-1 sm:w-64 shrink-0">
+              <Label className="text-xs text-muted-foreground">Batch Strategy</Label>
+              <Select value={strategy} onValueChange={(v) => setStrategy(v as BatchSelectionStrategy)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fefo">FEFO — First Expiry First Out</SelectItem>
+                  <SelectItem value="fifo">FIFO — First In First Out</SelectItem>
+                  <SelectItem value="manual">Manual Selection</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground leading-snug">
+                {strategy === "fefo" && "Prioritizes batches expiring soonest to minimize waste."}
+                {strategy === "fifo" && "Uses oldest stock first."}
+                {strategy === "manual" && "Choose specific batches manually."}
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isQuickBill}
-              onClick={() => setIsQuickBill(!isQuickBill)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
-                isQuickBill ? "bg-primary" : "bg-muted"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform ${
-                  isQuickBill ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0" data-batch-selector>
+          <BatchSelector
+            tenant={tenant}
+            strategy={strategy}
+            onAdd={handleAddAllocations}
+          />
+        </CardContent>
+      </Card>
 
-      {/* Customer + Strategy row */}
-      <div className="grid sm:grid-cols-3 gap-4">
-        <div className="space-y-1">
-          <Label>Customer {isQuickBill ? "(Quick)" : "*"}</Label>
-          {isQuickBill ? (
-            <Input
-              placeholder="Enter customer name or reference"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="text-sm"
-            />
-          ) : (
-            <Select value={customerId} onValueChange={handleCustomerChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select customer" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {!isQuickBill && selectedCustomer && (selectedCustomer.gstNumber || selectedCustomer.licenseNumber || selectedCustomer.address) && (
-            <div className="flex flex-wrap gap-3 mt-1">
-              {selectedCustomer.gstNumber && (
-                <span className="text-xs text-muted-foreground">
-                  GST: <span className="font-mono font-medium text-foreground">{selectedCustomer.gstNumber}</span>
-                </span>
-              )}
-              {selectedCustomer.licenseNumber && (
-                <span className="text-xs text-muted-foreground">
-                  License: <span className="font-mono font-medium text-foreground">{selectedCustomer.licenseNumber}</span>
-                </span>
-              )}
-              {selectedCustomer.address && (
-                <span className="text-xs text-muted-foreground">{selectedCustomer.address}</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-1">
-          <Label>Reference (Doctor / Lab / Consultant) {isQuickBill && "(Optional)"}</Label>
-          <Select
-            value={referredById || "__none__"}
-            onValueChange={(v) => {
-              if (v === "__none__") { setReferredById(""); setReferredBy(""); return; }
-              setReferredById(v);
-              const doc = doctors.find((d) => d.id === v);
-              setReferredBy(doc?.name ?? "");
-            }}
-            disabled={isQuickBill}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={isQuickBill ? "(Optional)" : "No reference"} />
-            </SelectTrigger>
-            {!isQuickBill && (
-              <SelectContent>
-                <SelectItem value="__none__">No reference / Walk-in</SelectItem>
-                {doctors.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}{" "}
-                    <span className="text-muted-foreground text-xs capitalize">({d.type})</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            )}
-          </Select>
-        </div>
-
-        <div className="space-y-1">
-          <Label>Batch Strategy</Label>
-          <Select value={strategy} onValueChange={(v) => setStrategy(v as BatchSelectionStrategy)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fefo">FEFO — First Expiry First Out</SelectItem>
-              <SelectItem value="fifo">FIFO — First In First Out</SelectItem>
-              <SelectItem value="manual">Manual Selection</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground leading-snug">
-            {strategy === "fefo" && "Prioritizes batches expiring soonest to minimize waste and stock aging."}
-            {strategy === "fifo" && "Uses oldest batches first, following first-in-first-out inventory principles."}
-            {strategy === "manual" && "Choose specific batches manually for complete control over allocation."}
-          </p>
-        </div>
-      </div>
-
-      {/* Batch Selector */}
-      <div data-batch-selector>
-        <BatchSelector
-          tenant={tenant}
-          strategy={strategy}
-          onAdd={handleAddAllocations}
-        />
-      </div>
-
-      {/* Line Items Table */}
+      {/* ── Step 3: Invoice Lines & Summary ─────────────────────────── */}
       {lineItems.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base">Invoice Lines</CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -702,54 +712,68 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                   </div>
                 )}
               </div>
+
+              {/* Actions */}
+              <Separator className="w-full" />
+              {saved && lastSavedInvoice ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full pt-1">
+                  <div className="flex items-center gap-2 mr-auto">
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-green-100 shrink-0">
+                      <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-green-700">Invoice saved</p>
+                      <p className="text-xs text-muted-foreground">
+                        ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        {selectedCustomer?.name ? ` · ${selectedCustomer.name}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      className="flex-1 sm:flex-none"
+                      onClick={() => setPrintInvoice(lastSavedInvoice)}
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Print Invoice
+                    </Button>
+                    <Button
+                      className="flex-1 sm:flex-none"
+                      onClick={resetForm}
+                    >
+                      New Invoice
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3 w-full justify-end pt-1">
+                  {saveError && (
+                    <p className="text-sm text-destructive mr-auto">{saveError}</p>
+                  )}
+                  <Button
+                    onClick={handleSave}
+                    disabled={(isQuickBill ? false : !customerId) || lineItems.length === 0 || saving || saved || !isAdmin}
+                    className="w-full sm:w-auto"
+                    title={!isAdmin ? "Admin access required" : undefined}
+                  >
+                    {saving ? "Saving…" : "Save Invoice"}
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          onClick={handleSave}
-          disabled={(isQuickBill ? false : !customerId) || lineItems.length === 0 || saved || !isAdmin}
-          className="w-full sm:w-auto"
-          title={!isAdmin ? "Admin access required" : undefined}
-        >
-          {saved ? "Invoice Saved ✓" : "Save Invoice"}
-        </Button>
-        {lastSavedInvoice && (
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto"
-            onClick={() => setPrintInvoice(lastSavedInvoice)}
-          >
-            <Printer className="h-4 w-4 mr-2" />
-            Print Last Invoice
-          </Button>
-        )}
-      </div>
-      {saveError && (
-        <p className="text-sm text-destructive">{saveError}</p>
-      )}
-      {validationError && (
-        <ValidationErrorAlert 
-          title="Invoice Validation Failed"
-          discrepancies={validationError.discrepancies}
-          expected={validationError.expected}
-          actual={validationError.actual}
-        />
-      )}
       <UnsavedChangesModal
         open={showUnsavedModal}
         onSave={handleSave}
         onDiscard={() => {
           setShowUnsavedModal(false);
-          setLineItems([]);
-          setCustomerId("");
-          setCustomerDiscountValue(0);
-          setPaymentStatus("unpaid");
-          setPaidAmount(0);
-          setReferredBy("");
-          setReferredById("");
+          resetForm();
         }}
         title="Unsaved Invoice"
         description="You have unsaved changes to this invoice. Save before leaving?"
@@ -760,19 +784,21 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
         onClose={() => setPrintInvoice(null)}
       />
 
-      {/* Floating Add Item Button (bottom-right, always visible when items exist) */}
+      {/* Floating Add Item Button — lets users add more items without scrolling all the way up */}
       {lineItems.length > 0 && (
-        <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
-          <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-lg shadow-md p-3 animate-pulse">
-            <span className="text-sm font-medium text-muted-foreground">Need more items?</span>
+        <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2 group">
+          <div className="hidden md:block transition-all duration-300 ease-in-out group-hover:opacity-0 group-hover:translate-y-1 group-hover:pointer-events-none">
+            <span className="text-xs text-muted-foreground bg-card border border-border rounded-lg shadow-sm px-3 py-1.5 font-medium whitespace-nowrap">
+              Need more items?
+            </span>
           </div>
           <button
-            onClick={() => document.querySelector('[data-batch-selector]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-            className="h-14 w-14 md:w-auto md:px-4 rounded-full md:rounded-lg bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-110 md:hover:scale-105 transition-all flex items-center justify-center gap-2 font-medium"
+            onClick={() => document.querySelector('[data-batch-selector]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="h-14 w-14 md:w-auto md:px-5 rounded-full md:rounded-xl bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2 font-medium text-sm"
             title="Add another item to invoice"
           >
-            <Plus className="h-6 w-6" />
-            <span className="hidden md:inline text-sm">Add Item</span>
+            <Plus className="h-5 w-5" />
+            <span className="hidden md:inline">Add Item</span>
           </button>
         </div>
       )}

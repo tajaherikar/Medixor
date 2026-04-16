@@ -119,7 +119,7 @@ export function InventoryTable({ tenant }: InventoryTableProps) {
                   qty === 0
                     ? "text-muted-foreground"
                     : qty < lowStockThreshold
-                    ? "text-orange-600"
+                    ? "text-orange-700"
                     : "text-foreground"
                 }`}
               >

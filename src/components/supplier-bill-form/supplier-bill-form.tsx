@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, type ChangeEvent, useMemo } from "react";
-import { useForm, useFieldArray, useWatch } from "react-hook-form";
+import { useForm, useFieldArray, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Trash2, Copy, ChevronDown, ChevronUp } from "lucide-react";
@@ -26,6 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Supplier, GstRate, UnitType, SupplierBill } from "@/lib/types";
 import { useAuthStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
+import { MedicineNameInput } from "@/components/ui/medicine-name-input";
 import { calculateGst } from "@/lib/gst-calculator";
 import { format, parseISO } from "date-fns";
 
@@ -106,6 +107,19 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+
+  // Fetch existing inventory item names for autocomplete suggestions
+  const { data: inventoryItemNames = [] } = useQuery<{ itemName: string }[], Error, string[]>({
+    queryKey: ["inventory-names", tenant],
+    queryFn: async () => {
+      const res = await fetch(`/api/${tenant}/inventory`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    select: (data) =>
+      Array.from(new Set(data.map((b) => b.itemName))),
+    staleTime: 60_000,
   });
 
   const {
@@ -430,7 +444,21 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs font-medium">Item Name *</Label>
-                      <Input placeholder="e.g., Paracetamol 500mg" {...register(`items.${index}.itemName`)} className="text-sm" />
+                      <Controller
+                        control={control}
+                        name={`items.${index}.itemName`}
+                        render={({ field }) => (
+                          <MedicineNameInput
+                            ref={field.ref}
+                            name={field.name}
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            inventoryNames={inventoryItemNames}
+                            placeholder="e.g., Paracetamol 500mg"
+                          />
+                        )}
+                      />
                       {errors.items?.[index]?.itemName && <p className="text-xs text-destructive">{errors.items[index]!.itemName!.message}</p>}
                     </div>
                     <div className="space-y-1">
