@@ -24,9 +24,15 @@ async function addMedReliefTenant() {
   const tenantId = "medrelief";
   const tenantName = "MedRelief Pharmacy";
   
-  // User credentials for the new tenant
-  const username = "admin@medrelief.com";
-  const password = "MedRelief@2026";
+  // User credentials — loaded from env vars so no secrets are committed to VCS.
+  // Set MEDRELIEF_ADMIN_USERNAME and MEDRELIEF_ADMIN_PASSWORD in .env.local
+  const username = process.env.MEDRELIEF_ADMIN_USERNAME;
+  const password = process.env.MEDRELIEF_ADMIN_PASSWORD;
+
+  if (!username || !password) {
+    console.error("❌ MEDRELIEF_ADMIN_USERNAME and MEDRELIEF_ADMIN_PASSWORD must be set in .env.local");
+    process.exit(1);
+  }
   
   // Hash the password
   const passwordHash = await bcrypt.hash(password, 10);
@@ -63,7 +69,7 @@ async function addMedReliefTenant() {
 
     if (existingUser) {
       console.log("⚠️  User already exists:", username);
-      console.log("   Please use a different email or delete the existing user first.\n");
+      console.log("   Please use a different username or delete the existing user first.\n");
       return;
     }
 

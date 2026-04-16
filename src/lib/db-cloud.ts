@@ -167,7 +167,7 @@ export async function getUserByEmail(email: string, tenantId: string): Promise<A
   const { data, error } = await supabase
     .from("users")
     .select("*")
-    .eq("email", email.toLowerCase())
+    .ilike("email", email)
     .eq("tenantId", tenantId)
     .maybeSingle();
   if (error) throw error;
@@ -183,7 +183,7 @@ export async function getUserByEmailAnyTenant(email: string): Promise<AppUser | 
   const { data, error } = await supabase
     .from("users")
     .select("*")
-    .eq("email", email.toLowerCase())
+    .ilike("email", email)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;

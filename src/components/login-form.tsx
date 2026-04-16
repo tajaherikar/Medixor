@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -94,7 +94,7 @@ export function LoginForm() {
     setAuthError("");
     return login(values.email, values.password).then((ok) => {
       if (!ok) {
-        setAuthError("Invalid email or password.");
+        setAuthError("Invalid username or password.");
         return;
       }
       
@@ -254,12 +254,12 @@ export function LoginForm() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Username</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="you@medixor.com"
-                autoComplete="email"
+                type="text"
+                placeholder="Enter your username"
+                autoComplete="username"
                 {...register("email")}
               />
               {errors.email && (
