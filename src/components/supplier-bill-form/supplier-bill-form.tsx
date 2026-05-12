@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, type ChangeEvent, useMemo } from "react";
 import { useForm, useFieldArray, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash2, Copy, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Copy, ChevronDown, ChevronUp, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { Supplier, GstRate, UnitType, SupplierBill } from "@/lib/types";
-import { useAuthStore } from "@/lib/stores";
+import { useAuthStore, useUIStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import { MedicineNameInput } from "@/components/ui/medicine-name-input";
 import { calculateGst } from "@/lib/gst-calculator";
@@ -94,6 +94,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const isEditing = !!billId && !!initialBill;
@@ -329,19 +330,50 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pt-0 p-4">
-      {/* Last Edited Info - only for editing */}
-      {isEditing && initialBill?.editedAt && (
-        <p className="text-xs text-muted-foreground">
-          Last Edited: {format(parseISO(initialBill.editedAt), "dd MMM yyyy, hh:mm a")}
-        </p>
-      )}
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-background overflow-auto" : ""}>
+      <form onSubmit={handleSubmit(onSubmit)} className={`space-y-6 ${isFullscreen ? 'p-6' : ''}`}>
+        {/* Fullscreen Header */}
+        {isFullscreen && (
+          <div className="sticky top-0 bg-background border-b border-border pb-4 mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">{isEditing ? 'Edit' : 'Record'} Supplier Bill</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Full screen entry mode</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+              title="Exit fullscreen"
+            >
+              <Minimize2 className="h-4 w-4" />
+              <span className="text-sm font-medium">Exit</span>
+            </button>
+          </div>
+        )}
 
-      {/* Header Fields */}
-      <Card>
-        <CardHeader>
-          <h3 className="text-base font-semibold">Supplier Details</h3>
-        </CardHeader>
+        {/* Last Edited Info - only for editing */}
+        {isEditing && initialBill?.editedAt && (
+          <p className="text-xs text-muted-foreground">
+            Last Edited: {format(parseISO(initialBill.editedAt), "dd MMM yyyy, hh:mm a")}
+          </p>
+        )}
+
+        {/* Header Fields */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <h3 className="text-base font-semibold">Supplier Details</h3>
+            {!isFullscreen && (
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors ml-auto"
+                title="Enter fullscreen mode"
+              >
+                <Maximize2 className="h-4 w-4" />
+                <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
+              </button>
+            )}
+          </CardHeader>
         <CardContent className="grid sm:grid-cols-3 gap-4">
           {/* Supplier */}
           <div className="space-y-1">
@@ -700,19 +732,20 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
         title="Bulk Import Items from Invoice"
       />
 
-      <UnsavedChangesModal
-        open={showUnsavedModal}
-        onSave={() => {
-          setShowUnsavedModal(false);
-          handleSubmit(onSubmit)();
-        }}
-        onDiscard={() => {
-          setShowUnsavedModal(false);
-          reset();
-        }}
-        title="Unsaved Bill"
-        description="You have unsaved changes to this supplier bill. Save before leaving?"
-      />
-    </form>
+        <UnsavedChangesModal
+          open={showUnsavedModal}
+          onSave={() => {
+            setShowUnsavedModal(false);
+            handleSubmit(onSubmit)();
+          }}
+          onDiscard={() => {
+            setShowUnsavedModal(false);
+            reset();
+          }}
+          title="Unsaved Bill"
+          description="You have unsaved changes to this supplier bill. Save before leaving?"
+        />
+      </form>
+    </div>
   );
 }

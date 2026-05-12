@@ -12,7 +12,22 @@ export async function GET(
   const authResult = await validateTenantAccess(req, tenant);
   if (authResult instanceof NextResponse) return authResult;
   
-  const suppliers = await db.getSuppliers(tenant);
+  const url = new URL(req.url);
+  const search = url.searchParams.get("search")?.toLowerCase();
+  
+  let suppliers = await db.getSuppliers(tenant);
+  
+  // Filter by search if provided
+  if (search) {
+    suppliers = suppliers.filter(
+      (s) =>
+        s.name.toLowerCase().includes(search) ||
+        s.phone?.toLowerCase().includes(search) ||
+        s.email?.toLowerCase().includes(search) ||
+        s.gstNumber?.toLowerCase().includes(search)
+    );
+  }
+  
   return NextResponse.json(suppliers);
 }
 

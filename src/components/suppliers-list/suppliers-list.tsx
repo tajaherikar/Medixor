@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Building2, Phone, Mail, Pencil, FileDigit, BadgeCheck } from "lucide-react";
+import { Plus, Building2, Phone, Mail, Pencil, FileDigit, BadgeCheck, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
 import { Supplier } from "@/lib/types";
 import {
@@ -47,6 +47,7 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [search, setSearch] = useState("");
+  const [expandedSuppliersDir, setExpandedSuppliersDir] = useState(false);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
@@ -132,13 +133,32 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
     <>
       <div className="rounded-xl border border-border overflow-hidden bg-card shadow-sm">
         {/* Header */}
-        <div className="space-y-4 px-5 py-4 border-b border-border">
+        <div className="px-5 py-4 border-b border-border space-y-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-sm">Supplier Directory</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""} registered
-              </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setExpandedSuppliersDir(!expandedSuppliersDir);
+                  // Clear search when collapsing to avoid misleading filtered count
+                  if (expandedSuppliersDir) {
+                    setSearch("");
+                  }
+                }}
+                className="p-1 rounded hover:bg-muted transition-colors"
+                aria-label={expandedSuppliersDir ? "Collapse suppliers" : "Expand suppliers"}
+              >
+                {expandedSuppliersDir ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+              <div>
+                <h3 className="font-semibold text-sm">Supplier Directory</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""} registered
+                </p>
+              </div>
             </div>
             {isAdmin && (
               <Button size="sm" onClick={() => setDialogOpen(true)}>
@@ -147,15 +167,18 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
               </Button>
             )}
           </div>
-          <Input
-            placeholder="Search by name, phone, or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8"
-          />
+          {expandedSuppliersDir && (
+            <Input
+              placeholder="Search by name, phone, or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8"
+            />
+          )}
         </div>
 
         {/* Table */}
+        {expandedSuppliersDir && (
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -252,6 +275,7 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
                 ))}
           </TableBody>
         </Table>
+        )}
       </div>
 
       {/* Add / Edit Supplier Dialog */}

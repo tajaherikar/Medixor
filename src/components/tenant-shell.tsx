@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { TopHeader } from "@/components/top-header";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { useAuthStore, useSettingsStore } from "@/lib/stores";
+import { useAuthStore, useSettingsStore, useUIStore } from "@/lib/stores";
 import { setupAutoPreload } from "@/lib/preload";
 
 interface TenantShellProps {
@@ -18,6 +18,7 @@ export function TenantShell({ tenant, children }: TenantShellProps) {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const { user, _hasHydrated } = useAuthStore();
   const { updateSettings } = useSettingsStore();
+  const { sidebarOpen, toggleSidebar } = useUIStore();
   const router = useRouter();
 
   // SECURITY: Redirect to login if not authenticated
@@ -108,9 +109,10 @@ export function TenantShell({ tenant, children }: TenantShellProps) {
         tenant={tenant}
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
+        compact={!sidebarOpen}
       />
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
-        <TopHeader tenant={tenant} onMenuOpen={() => setMobileOpen(true)} />
+        <TopHeader tenant={tenant} onMenuOpen={() => setMobileOpen(true)} onSidebarToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
         <main className="flex-1 overflow-auto p-6 md:p-8">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>

@@ -159,3 +159,24 @@ export const useSettingsStore = create<SettingsState>()(
   )
 );
 
+// ─── UI State Store ──────────────────────────────────────────────────────────
+
+interface UIState {
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
+  fullscreenMode: string | null; // null, "supplier-bill", "invoice"
+  setFullscreenMode: (mode: string | null) => void;
+}
+
+export const useUIStore = create<UIState>()(
+  persist(
+    (set) => ({
+      sidebarOpen: true,
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      fullscreenMode: null,
+      setFullscreenMode: (mode) => set({ fullscreenMode: mode }),
+    }),
+    { name: "medixor-ui" }
+  )
+);
+

@@ -37,9 +37,10 @@ interface SidebarNavProps {
   tenant: string;
   mobileOpen?: boolean;
   onClose?: () => void;
+  compact?: boolean;
 }
 
-function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => void }) {
+function SidebarContent({ tenant, onClose, compact = false }: { tenant: string; onClose?: () => void; compact?: boolean }) {
   const pathname = usePathname();
   const { user } = useAuthStore();
   const businessName = useSettingsStore((s) => s.settings.businessName);
@@ -61,11 +62,12 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-5 pt-6 pb-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
-        <div className="flex items-center gap-2.5">
+      <div className={`flex items-center justify-between ${compact ? "px-3 py-4" : "px-5 pt-6 pb-5"}`} style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
+        <div className={compact ? "" : "flex items-center gap-2.5"}>
           <div
             className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0 overflow-hidden"
             style={{ background: logoBase64 ? "white" : "var(--sidebar-primary)" }}
+            title={compact ? businessName || "Medixor" : undefined}
           >
             {logoBase64 ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -74,20 +76,22 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
               <Cross className="h-4 w-4" style={{ color: "var(--sidebar-primary-foreground)" }} />
             )}
           </div>
-          <div>
-            <span
-              className="text-lg font-bold tracking-tight leading-none"
-              style={{ fontFamily: "var(--font-jakarta), sans-serif", color: "var(--sidebar-foreground)" }}
-            >
-              {businessName || "Medixor"}
-            </span>
-            <span
-              className="block text-xs capitalize leading-tight mt-0.5 font-medium"
-              style={{ color: "var(--sidebar-primary)", opacity: 0.85 }}
-            >
-              {tenant}
-            </span>
-          </div>
+          {!compact && (
+            <div>
+              <span
+                className="text-lg font-bold tracking-tight leading-none"
+                style={{ fontFamily: "var(--font-jakarta), sans-serif", color: "var(--sidebar-foreground)" }}
+              >
+                {businessName || "Medixor"}
+              </span>
+              <span
+                className="block text-xs capitalize leading-tight mt-0.5 font-medium"
+                style={{ color: "var(--sidebar-primary)", opacity: 0.85 }}
+              >
+                {tenant}
+              </span>
+            </div>
+          )}
         </div>
         {/* Close button — only shown in mobile drawer */}
         {onClose && (
@@ -103,14 +107,16 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
       </div>
 
       {/* Nav label */}
-      <div className="px-5 pt-5 pb-2">
-        <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "oklch(0.55 0.02 240)" }}>
-          Navigation
-        </span>
-      </div>
+      {!compact && (
+        <div className="px-5 pt-5 pb-2">
+          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "oklch(0.55 0.02 240)" }}>
+            Navigation
+          </span>
+        </div>
+      )}
 
       {/* Nav items */}
-      <nav className="px-3 flex-1 space-y-0.5">
+      <nav className={`${compact ? "px-2" : "px-3"} flex-1 ${compact ? "space-y-1" : "space-y-0.5"}`}>
         {allNavItems.map(({ label, href, icon: Icon }) => {
           const fullPath = `/${tenant}/${href}`;
           const isActive = pathname === fullPath || pathname.startsWith(`${fullPath}/`);
@@ -121,7 +127,9 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
               prefetch={true}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 group"
+                compact ? "justify-center" : "gap-3",
+                "flex items-center rounded-lg transition-all duration-150 group relative",
+                compact ? "p-2.5 w-10 h-10" : "gap-3 px-3 py-2.5 text-sm font-medium"
               )}
               style={
                 isActive
@@ -145,11 +153,16 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
                   (e.currentTarget as HTMLElement).style.color = "var(--sidebar-foreground)";
                 }
               }}
+              title={compact ? label : undefined}
             >
               <Icon className="h-[18px] w-[18px] shrink-0" />
-              <span>{label}</span>
-              {isActive && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/80" />
+              {!compact && (
+                <>
+                  <span>{label}</span>
+                  {isActive && (
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/80" />
+                  )}
+                </>
               )}
             </Link>
           );
@@ -157,24 +170,26 @@ function SidebarContent({ tenant, onClose }: { tenant: string; onClose?: () => v
       </nav>
 
       {/* Footer */}
-      <div className="px-5 py-4 mt-auto" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
-        <span className="text-xs" style={{ color: "oklch(0.45 0.02 240)" }}>
-          Medixor v1.0.0
-        </span>
-      </div>
+      {!compact && (
+        <div className="px-5 py-4 mt-auto" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
+          <span className="text-xs" style={{ color: "oklch(0.45 0.02 240)" }}>
+            Medixor v1.0.0
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
-export function SidebarNav({ tenant, mobileOpen = false, onClose }: SidebarNavProps) {
+export function SidebarNav({ tenant, mobileOpen = false, onClose, compact = false }: SidebarNavProps) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside
-        className="hidden md:flex flex-col w-64 h-screen sticky top-0"
+        className={`hidden md:flex flex-col h-screen sticky top-0 transition-all duration-300 ${compact ? "w-16" : "w-64"}`}
         style={{ background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)" }}
       >
-        <SidebarContent tenant={tenant} />
+        <SidebarContent tenant={tenant} compact={compact} />
       </aside>
 
       {/* Mobile overlay backdrop */}
@@ -194,7 +209,7 @@ export function SidebarNav({ tenant, mobileOpen = false, onClose }: SidebarNavPr
         )}
         style={{ background: "var(--sidebar)" }}
       >
-      <SidebarContent tenant={tenant} onClose={onClose} />
+      <SidebarContent tenant={tenant} onClose={onClose} compact={false} />
       </aside>
     </>
   );
