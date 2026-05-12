@@ -285,7 +285,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
   return (
     <div className={isFullscreen ? "fixed inset-0 z-50 bg-background overflow-auto" : ""}>
-      <div className={`space-y-5${lineItems.length > 0 ? " pb-24" : ""}`}>
+      <div className={`space-y-5${lineItems.length > 0 ? " pb-24" : ""}${isFullscreen ? " p-6" : ""}`}>
 
       {/* ── Fullscreen Header ─────────────────────────────────────────── */}
       {isFullscreen && (
