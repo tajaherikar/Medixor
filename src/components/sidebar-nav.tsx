@@ -117,7 +117,7 @@ function SidebarContent({ tenant, onClose, compact = false }: { tenant: string; 
 
       {/* Nav items */}
       <nav className={`${compact ? "px-2" : "px-3"} flex-1 ${compact ? "space-y-1" : "space-y-0.5"}`}>
-        {allNavItems.map(({ label, href, icon: Icon, description }) => {
+        {allNavItems.map(({ label, href, icon: Icon }) => {
           const fullPath = `/${tenant}/${href}`;
           const isActive = pathname === fullPath || pathname.startsWith(`${fullPath}/`);
           return (

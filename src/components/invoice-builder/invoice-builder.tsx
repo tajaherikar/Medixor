@@ -66,7 +66,6 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { user } = useAuthStore();
   const { settings } = useSettingsStore();
-  const { sidebarOpen } = useUIStore();
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
   const [lineItems, setLineItems] = useState<LineItem[]>([]);

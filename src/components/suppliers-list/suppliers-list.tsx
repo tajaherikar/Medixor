@@ -137,7 +137,13 @@ export function SuppliersList({ tenant }: SuppliersListProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setExpandedSuppliersDir(!expandedSuppliersDir)}
+                onClick={() => {
+                  setExpandedSuppliersDir(!expandedSuppliersDir);
+                  // Clear search when collapsing to avoid misleading filtered count
+                  if (expandedSuppliersDir) {
+                    setSearch("");
+                  }
+                }}
                 className="p-1 rounded hover:bg-muted transition-colors"
                 aria-label={expandedSuppliersDir ? "Collapse suppliers" : "Expand suppliers"}
               >

@@ -96,7 +96,6 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { user } = useAuthStore();
-  const { sidebarOpen } = useUIStore();
   const isAdmin = user?.role === "admin";
   const isEditing = !!billId && !!initialBill;
 
