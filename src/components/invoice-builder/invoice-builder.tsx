@@ -27,14 +27,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, Printer, Plus } from "lucide-react";
+import { Trash2, Printer, Plus, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 import { InvoicePrintModal } from "@/components/reports/invoice-print-modal";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import { ValidationErrorAlert } from "@/components/ui/validation-error-alert";
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
-import { useAuthStore, useSettingsStore } from "@/lib/stores";
+import { useAuthStore, useSettingsStore, useUIStore } from "@/lib/stores";
 
 interface LineItem {
   batchId: string;
@@ -63,8 +63,10 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [customerId, setCustomerId] = useState<string>("");
   const [strategy, setStrategy] = useState<BatchSelectionStrategy>("fefo");
   const [isQuickBill, setIsQuickBill] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { user } = useAuthStore();
   const { settings } = useSettingsStore();
+  const { sidebarOpen } = useUIStore();
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -283,7 +285,27 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   }
 
   return (
-    <div className={`space-y-5${lineItems.length > 0 ? " pb-24" : ""}`}>
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-background overflow-auto" : ""}>
+      <div className={`space-y-5${lineItems.length > 0 ? " pb-24" : ""}`}>
+
+      {/* ── Fullscreen Header ─────────────────────────────────────────── */}
+      {isFullscreen && (
+        <div className="sticky top-0 bg-background border-b border-border p-4 mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Record Invoice</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Full screen entry mode</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(false)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+            title="Exit fullscreen"
+          >
+            <Minimize2 className="h-4 w-4" />
+            <span className="text-sm font-medium">Exit</span>
+          </button>
+        </div>
+      )}
 
       {/* ── Step 1: Bill To ─────────────────────────────────────────── */}
       <Card>
@@ -293,11 +315,12 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
               <CardTitle className="text-base">Bill To</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">Select who this invoice is for</p>
             </div>
-            {settings.enableQuickBilling && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-xs text-muted-foreground">
-                  {isQuickBill ? "Quick Bill" : "Full Bill"}
-                </span>
+            <div className="flex items-center gap-3">
+              {settings.enableQuickBilling && (
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs text-muted-foreground">
+                    {isQuickBill ? "Quick Bill" : "Full Bill"}
+                  </span>
                 <button
                   type="button"
                   role="switch"
@@ -316,7 +339,19 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                 </button>
               </div>
             )}
+            {!isFullscreen && (
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+                title="Enter fullscreen mode"
+              >
+                <Maximize2 className="h-4 w-4" />
+                <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
+              </button>
+            )}
           </div>
+        </div>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="grid sm:grid-cols-2 gap-4">
@@ -802,6 +837,7 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

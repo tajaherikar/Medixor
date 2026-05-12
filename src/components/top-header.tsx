@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bell, Search, Menu, LogOut, AlertTriangle, PackageX, ReceiptText, Settings } from "lucide-react";
+import { Bell, Search, Menu, LogOut, AlertTriangle, PackageX, ReceiptText, Settings, ChevronLeft } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
 import { getBatches, getInvoices } from "@/lib/db";
 import { Batch, Invoice } from "@/lib/types";
@@ -21,9 +21,11 @@ const routeLabels: Record<string, { title: string; subtitle: string }> = {
 interface TopHeaderProps {
   tenant: string;
   onMenuOpen?: () => void;
+  onSidebarToggle?: () => void;
+  sidebarOpen?: boolean;
 }
 
-export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
+export function TopHeader({ tenant, onMenuOpen, onSidebarToggle, sidebarOpen = true }: TopHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -152,6 +154,14 @@ export function TopHeader({ tenant, onMenuOpen }: TopHeaderProps) {
             aria-label="Open menu"
           >
             <Menu className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onSidebarToggle}
+            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg border border-border bg-muted hover:border-primary/40 hover:text-primary transition-colors"
+            aria-label="Toggle sidebar"
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            <ChevronLeft className={`h-4 w-4 transition-transform ${sidebarOpen ? "rotate-0" : "rotate-180"}`} />
           </button>
           <div>
             <h1
