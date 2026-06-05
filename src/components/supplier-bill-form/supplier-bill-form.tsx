@@ -575,6 +575,41 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                     </div>
                   </div>
 
+                  {/* Tax Section - Always Visible */}
+                  <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-3">
+                    <div className="text-xs font-semibold text-blue-900">Tax & Calculation</div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 space-y-1">
+                        <Label className="text-xs font-medium">GST Rate (%)</Label>
+                        <Select
+                          defaultValue={String(emptyItem.gstRate)}
+                          onValueChange={(v) => setValue(`items.${index}.gstRate`, Number(v))}
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GST_RATES.map((r) => (
+                              <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <label className="flex items-center gap-2 text-xs cursor-pointer mt-6">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(watchedItems?.[index]?.gstInclusive)}
+                          onChange={(e) => setValue(`items.${index}.gstInclusive`, e.target.checked)}
+                          className="h-4 w-4 rounded"
+                        />
+                        <span className="font-medium">Inclusive GST</span>
+                      </label>
+                    </div>
+                    <div className="text-xs text-blue-900 bg-blue-100 p-2 rounded border border-blue-300">
+                      Taxable: {rupees(t?.taxable ?? 0)} + GST: {rupees((t?.cgst ?? 0) + (t?.sgst ?? 0))} = <strong>{rupees(t?.lineTotal ?? 0)}</strong>
+                    </div>
+                  </div>
+
                   {/* Advanced Section - Collapsible */}
                   {isExpanded && (
                     <div className="pt-3 border-t space-y-4">
@@ -680,41 +715,6 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                             <Input type="text" placeholder="10+1, 10+5" {...register(`items.${index}.schemePattern`)} className="text-sm" />
                             <p className="text-xs text-muted-foreground">Pattern for reference</p>
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Tax Section */}
-                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-3">
-                        <div className="text-xs font-semibold text-blue-900">Tax & Calculation</div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-xs font-medium">GST Rate (%)</Label>
-                            <Select
-                              defaultValue={String(emptyItem.gstRate)}
-                              onValueChange={(v) => setValue(`items.${index}.gstRate`, Number(v))}
-                            >
-                              <SelectTrigger className="h-9 text-sm">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {GST_RATES.map((r) => (
-                                  <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <label className="flex items-center gap-2 text-xs cursor-pointer mt-6">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(watchedItems?.[index]?.gstInclusive)}
-                              onChange={(e) => setValue(`items.${index}.gstInclusive`, e.target.checked)}
-                              className="h-4 w-4 rounded"
-                            />
-                            <span className="font-medium">Inclusive GST</span>
-                          </label>
-                        </div>
-                        <div className="text-xs text-blue-900 bg-blue-100 p-2 rounded border border-blue-300">
-                          Taxable: {rupees(t?.taxable ?? 0)} + GST: {rupees((t?.cgst ?? 0) + (t?.sgst ?? 0))} = <strong>{rupees(t?.lineTotal ?? 0)}</strong>
                         </div>
                       </div>
                     </div>
