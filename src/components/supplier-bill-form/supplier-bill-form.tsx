@@ -146,7 +146,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
         itemName: item.itemName,
         hsnCode: item.hsnCode,
         batchNumber: item.batchNumber,
-        expiryDate: item.expiryDate,
+        // Convert old full date format (YYYY-MM-DD) to new YYYY-MM format
+        expiryDate: item.expiryDate ? item.expiryDate.substring(0, 7) : "",
         mrp: item.mrp,
         purchasePrice: item.purchasePrice,
         quantity: item.quantity,
@@ -519,23 +520,10 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                         name={`items.${index}.expiryDate`}
                         render={({ field }) => (
                           <Input
-                            type="text"
-                            placeholder="mm/yyyy"
-                            value={field.value ? field.value.replace(/(\d{4})-(\d{2})/, "$2/$1") : ""}
-                            onChange={(e) => {
-                              let val = e.target.value.replace(/\D/g, "");
-                              if (val.length > 4) val = val.slice(0, 4);
-                              if (val.length >= 3) {
-                                const mm = val.slice(0, 2);
-                                const yy = val.slice(2, 4);
-                                const fullYear = parseInt(yy) < 30 ? 2000 + parseInt(yy) : 1900 + parseInt(yy);
-                                field.onChange(`${fullYear}-${mm}`);
-                              } else {
-                                field.onChange("");
-                              }
-                            }}
+                            type="month"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
                             onBlur={field.onBlur}
-                            maxLength={7}
                             className="text-sm"
                           />
                         )}
