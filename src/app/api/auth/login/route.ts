@@ -36,6 +36,15 @@ export async function POST(req: NextRequest) {
     };
     
     const { passwordHash: _ph, ...safeUser } = user;
+    
+    console.log('[Login] SafeUser being returned:', { 
+      email: safeUser.email, 
+      role: safeUser.role,
+      userId: safeUser.id,
+      tenantId: safeUser.tenantId,
+      allFields: Object.keys(safeUser)
+    });
+    
     const response = NextResponse.json(safeUser);
     
     // Set session cookie on response

@@ -41,7 +41,13 @@ const itemSchema = z.object({
   expiryDate:    z
     .string()
     .min(1, "Expiry date required")
-    .refine((val) => new Date(val) > new Date(), { message: "Expiry date must be in the future" }),
+    .refine((val) => {
+      // Validate YYYY-MM format from month input
+      if (!val || !/^\d{4}-\d{2}$/.test(val)) return false;
+      const [year, month] = val.split("-").map(Number);
+      const lastDay = new Date(year, month, 0);
+      return lastDay > new Date();
+    }, { message: "Expiry month must be in the future" }),
   mrp:           z.number({ error: "MRP must be > 0" }).positive("MRP must be > 0"),
   purchasePrice: z.number({ error: "Purchase price must be > 0" }).positive("Purchase price must be > 0"),
   quantity:      z.number({ error: "Quantity must be > 0" }).int().positive("Quantity must be > 0"),
@@ -445,7 +451,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                       {watchedItems?.[index]?.itemName || "(No item name)"}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      Batch: {watchedItems?.[index]?.batchNumber || "-"} • Exp: {watchedItems?.[index]?.expiryDate || "-"}
+                      Batch: {watchedItems?.[index]?.batchNumber || "-"} • Exp: {watchedItems?.[index]?.expiryDate ? watchedItems[index]!.expiryDate : "-"}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -508,7 +514,32 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs font-medium">Expiry Date *</Label>
-                      <Input type="date" {...register(`items.${index}.expiryDate`)} className="text-sm" />
+                      <Controller
+                        control={control}
+                        name={`items.${index}.expiryDate`}
+                        render={({ field }) => (
+                          <Input
+                            type="text"
+                            placeholder="mm/yyyy"
+                            value={field.value ? field.value.replace(/(\d{4})-(\d{2})/, "$2/$1") : ""}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, "");
+                              if (val.length > 4) val = val.slice(0, 4);
+                              if (val.length >= 3) {
+                                const mm = val.slice(0, 2);
+                                const yy = val.slice(2, 4);
+                                const fullYear = parseInt(yy) < 30 ? 2000 + parseInt(yy) : 1900 + parseInt(yy);
+                                field.onChange(`${fullYear}-${mm}`);
+                              } else {
+                                field.onChange("");
+                              }
+                            }}
+                            onBlur={field.onBlur}
+                            maxLength={7}
+                            className="text-sm"
+                          />
+                        )}
+                      />
                       {errors.items?.[index]?.expiryDate && <p className="text-xs text-destructive">{errors.items[index]!.expiryDate!.message}</p>}
                     </div>
                     <div className="space-y-1">

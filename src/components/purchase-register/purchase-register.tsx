@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SupplierBill } from "@/lib/types";
 import { fetchSupplierBills } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ClipboardList, ChevronDown, ChevronRight, CreditCard, IndianRupee, Edit } from "lucide-react";
+import { ClipboardList, ChevronDown, ChevronRight, CreditCard, IndianRupee, Edit, Eye } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
 import { format, parseISO } from "date-fns";
 import {
@@ -57,6 +57,16 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   const [editBill, setEditBill] = useState<SupplierBill | null>(null);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
+  
+  // Debug logging
+  useEffect(() => {
+    console.log("[PurchaseRegister] User info:", { 
+      email: user?.email, 
+      role: user?.role, 
+      isAdmin, 
+      userObject: user 
+    });
+  }, [user, isAdmin]);
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState("bank");
   const [payRef, setPayRef] = useState("");
@@ -192,6 +202,15 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
                         <TableCell><PayStatus status={bill.paymentStatus} /></TableCell>
                         <TableCell>
                           <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={(e) => { e.stopPropagation(); setExpandedId(expandedId === bill.id ? null : bill.id); }}
+                              title="View bill details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             {isAdmin && (
                               <Button
                                 variant="outline"
