@@ -82,7 +82,14 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   });
 
   // Filter out paid bills for display (pending invoices only)
-  const pendingBills = bills.filter((b) => b.paymentStatus !== "paid");
+  const pendingBills = bills
+    .filter((b) => b.paymentStatus !== "paid")
+    .sort((a, b) => {
+      // Sort by date descending (most recent first)
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+    });
 
   // Paginate pending bills on client side
   const paginatedBills = pendingBills.slice(

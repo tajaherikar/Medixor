@@ -524,18 +524,10 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                         name={`items.${index}.expiryDate`}
                         render={({ field }) => (
                           <Input
-                            type="date"
-                            value={field.value ? `${field.value}-01` : ""}
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                // Convert from YYYY-MM-DD to YYYY-MM format
-                                const dateStr = e.target.value;
-                                const [year, month] = dateStr.split('-');
-                                field.onChange(`${year}-${month}`);
-                              } else {
-                                field.onChange("");
-                              }
-                            }}
+                            type="month"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            placeholder="mm/yyyy"
                             onBlur={field.onBlur}
                             className="text-sm"
                           />
@@ -583,7 +575,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                       <div className="flex-1 space-y-1">
                         <Label className="text-xs font-medium">GST Rate (%)</Label>
                         <Select
-                          defaultValue={String(emptyItem.gstRate)}
+                          value={String(watchedItems?.[index]?.gstRate || emptyItem.gstRate)}
                           onValueChange={(v) => setValue(`items.${index}.gstRate`, Number(v))}
                         >
                           <SelectTrigger className="h-9 text-sm">
