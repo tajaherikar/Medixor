@@ -524,25 +524,20 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                         name={`items.${index}.expiryDate`}
                         render={({ field }) => (
                           <Input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="mm/yyyy"
-                            value={field.value ? field.value.split('-').reverse().join('/') : ""}
+                            type="date"
+                            value={field.value ? `${field.value}-01` : ""}
                             onChange={(e) => {
-                              const input = e.target.value.replace(/\D/g, "");
-                              if (input.length === 0) {
+                              if (e.target.value) {
+                                // Convert from YYYY-MM-DD to YYYY-MM format
+                                const dateStr = e.target.value;
+                                const [year, month] = dateStr.split('-');
+                                field.onChange(`${year}-${month}`);
+                              } else {
                                 field.onChange("");
-                              } else if (input.length === 4) {
-                                const mm = input.slice(0, 2);
-                                const yy = input.slice(2, 4);
-                                const fullYear = parseInt(yy) < 30 ? 2000 + parseInt(yy) : 1900 + parseInt(yy);
-                                field.onChange(`${fullYear}-${mm}`);
                               }
                             }}
                             onBlur={field.onBlur}
-                            maxLength={7}
                             className="text-sm"
-                            title="Enter expiry date in mm/yyyy format (e.g., 10/2027)"
                           />
                         )}
                       />
