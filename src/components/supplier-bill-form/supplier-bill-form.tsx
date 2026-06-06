@@ -506,6 +506,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     setTimeout(() => {
       reset();
       setSubmitted(false);
+      setDuplicateInvoice(null);
+      setLastBillFromSupplier(null);
       onSuccess?.();
     }, 1500);
   }
@@ -972,6 +974,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
           onDiscard={() => {
             setShowUnsavedModal(false);
             reset();
+            setDuplicateInvoice(null);
+            setLastBillFromSupplier(null);
           }}
           title="Unsaved Bill"
           description="You have unsaved changes to this supplier bill. Save before leaving?"
