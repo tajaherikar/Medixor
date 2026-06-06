@@ -11,6 +11,7 @@ import type {
   Supplier,
   Invoice,
   SupplierBill,
+  SupplierBillItem,
   Payment,
   BusinessSettings,
   AppUser,
@@ -96,6 +97,109 @@ export async function fetchSupplierBills(tenant: string): Promise<SupplierBill[]
     `/api/${tenant}/supplier-bills`,
     () => localDb.getSupplierBills()
   );
+}
+
+/**
+ * Fetch the MRP and Purchase Price from the most recent purchase of an item
+ * @param itemName - The name of the item to search for (case-insensitive)
+ * @param tenant - The tenant ID
+ * @returns Object with mrp and purchasePrice, or null if item not found
+ */
+export async function fetchLastItemPrices(
+  itemName: string,
+  tenant: string
+): Promise<{ mrp: number; purchasePrice: number } | null> {
+  const bills = await fetchSupplierBills(tenant);
+
+  // Find all items matching the name (case-insensitive)
+  const matchingItems: Array<{ item: SupplierBillItem; billDate: string }> = [];
+
+  bills.forEach((bill) => {
+    bill.items.forEach((item) => {
+      if (item.itemName.toLowerCase() === itemName.toLowerCase()) {
+        matchingItems.push({
+          item,
+          billDate: bill.date,
+        });
+      }
+    });
+  });
+
+  if (matchingItems.length === 0) {
+    return null;
+  }
+
+  // Sort by bill date descending and get the most recent
+  matchingItems.sort((a, b) => {
+    const dateA = new Date(a.billDate).getTime();
+    const dateB = new Date(b.billDate).getTime();
+    return dateB - dateA;
+  });
+
+  const latestItem = matchingItems[0].item;
+  return {
+    mrp: latestItem.mrp,
+    purchasePrice: latestItem.purchasePrice,
+  };
+}
+
+/**
+ * Fetch previous bill details by invoice number (for invoice number smart lookup)
+ * Returns supplier ID and date if invoice number exists
+ * @param invoiceNumber - The invoice number to search for
+ * @param tenant - The tenant ID
+ * @returns Object with supplierId and date, or null if not found
+ */
+export async function fetchPreviousBillByInvoiceNumber(
+  invoiceNumber: string,
+  tenant: string
+): Promise<{ supplierId: string; supplierName: string; date: string } | null> {
+  const bills = await fetchSupplierBills(tenant);
+
+  // Find bills with matching invoice number (case-insensitive, trimmed)
+  const matchingBills = bills.filter(
+    (b) => b.invoiceNumber.toLowerCase().trim() === invoiceNumber.toLowerCase().trim()
+  );
+
+  if (matchingBills.length === 0) {
+    return null;
+  }
+
+  // Sort by date descending and return the most recent
+  matchingBills.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return dateB - dateA;
+  });
+
+  const latestBill = matchingBills[0];
+  return {
+    supplierId: latestBill.supplierId,
+    supplierName: latestBill.supplierName,
+    date: latestBill.date,
+  };
+}
+
+/**
+ * Fetch the last used supplier to pre-fill for convenience
+ * @param tenant - The tenant ID
+ * @returns Supplier ID of most recent purchase, or null
+ */
+export async function fetchLastUsedSupplierId(tenant: string): Promise<string | null> {
+  const bills = await fetchSupplierBills(tenant);
+
+  if (bills.length === 0) {
+    return null;
+  }
+
+  // Sort by date descending and return the most recent supplier
+  bills.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return dateB - dateA;
+  });
+
+  return bills[0].supplierId;
 }
 
 export async function fetchDoctors(tenant: string): Promise<Doctor[]> {

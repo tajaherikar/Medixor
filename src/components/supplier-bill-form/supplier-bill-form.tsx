@@ -28,6 +28,7 @@ import { useAuthStore, useUIStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import { MedicineNameInput } from "@/components/ui/medicine-name-input";
 import { calculateGst } from "@/lib/gst-calculator";
+import { fetchLastItemPrices, fetchPreviousBillByInvoiceNumber, fetchLastUsedSupplierId } from "@/lib/api-client";
 import { format, parseISO } from "date-fns";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
@@ -186,6 +187,49 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty, submitted]);
 
+  // Pre-fill supplier with last used supplier on initial form load (only for new bills)
+  useEffect(() => {
+    if (isEditing || watchedSupplierId) return; // Skip if editing or already selected
+    
+    const prefilLastSupplier = async () => {
+      try {
+        const lastSupplierId = await fetchLastUsedSupplierId(tenant);
+        if (lastSupplierId) {
+          setValue("supplierId", lastSupplierId);
+        }
+      } catch (error) {
+        console.error("Failed to fetch last used supplier:", error);
+      }
+    };
+
+    prefilLastSupplier();
+  }, [isEditing, tenant, watchedSupplierId, setValue]);
+
+  // Handle invoice number change - smart lookup for repeated invoices
+  const handleInvoiceNumberChange = async (invoiceNumber: string) => {
+    setValue("invoiceNumber", invoiceNumber);
+
+    // Only lookup if invoice number is long enough (at least 3 chars)
+    if (invoiceNumber.length < 3) return;
+
+    // Get current supplier for context
+    const currentSupplierId = watchedSupplierId;
+    if (!currentSupplierId) return; // Supplier must be selected first
+
+    try {
+      const previousBill = await fetchPreviousBillByInvoiceNumber(invoiceNumber, tenant);
+      if (previousBill && previousBill.supplierId === currentSupplierId) {
+        // Only auto-fill if it's from the same supplier
+        setValue("date", previousBill.date);
+        toast.success("Found previous bill - date auto-filled", {
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to lookup invoice number:", error);
+    }
+  };
+
   // Live totals — using centralized GST calculator
   const itemTotals = useMemo(() => {
     return (watchedItems ?? []).map((item) => {
@@ -247,6 +291,33 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
       newSet.add(fieldId);
     }
     setExpandedItems(newSet);
+  };
+
+  // Handle item name selection with auto-population of prices
+  const handleItemNameChange = async (itemName: string, index: number) => {
+    // Set the item name
+    setValue(`items.${index}.itemName`, itemName);
+
+    // If item name is long enough to be a real selection (not just typing)
+    if (itemName.length > 2) {
+      try {
+        // Fetch the last purchase prices for this item
+        const lastPrices = await fetchLastItemPrices(itemName, tenant);
+        if (lastPrices) {
+          // Auto-populate MRP and Purchase Price
+          setValue(`items.${index}.mrp`, lastPrices.mrp);
+          setValue(`items.${index}.purchasePrice`, lastPrices.purchasePrice);
+          
+          // Show subtle feedback
+          toast.success("Prices auto-filled from last purchase", {
+            duration: 2000,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch last item prices:", error);
+        // Silent fail - don't interrupt user flow
+      }
+    }
   };
 
   async function onSubmit(data: BillFormValues) {
@@ -422,7 +493,18 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
           {/* Invoice Number */}
           <div className="space-y-1">
             <Label>Invoice Number</Label>
-            <Input placeholder="INV-001" {...register("invoiceNumber")} />
+            <Controller
+              control={control}
+              name="invoiceNumber"
+              render={({ field }) => (
+                <Input 
+                  placeholder="INV-001" 
+                  value={field.value}
+                  onChange={(e) => handleInvoiceNumberChange(e.target.value)}
+                  onBlur={field.onBlur}
+                />
+              )}
+            />
             {errors.invoiceNumber && <p className="text-xs text-destructive">{errors.invoiceNumber.message}</p>}
           </div>
 
@@ -495,7 +577,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                             ref={field.ref}
                             name={field.name}
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(itemName) => handleItemNameChange(itemName, index)}
                             onBlur={field.onBlur}
                             inventoryNames={inventoryItemNames}
                             placeholder="e.g., Paracetamol 500mg"
