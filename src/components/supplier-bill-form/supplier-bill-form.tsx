@@ -28,7 +28,15 @@ import { useAuthStore, useUIStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import { MedicineNameInput } from "@/components/ui/medicine-name-input";
 import { calculateGst } from "@/lib/gst-calculator";
-import { fetchLastItemPrices, fetchPreviousBillByInvoiceNumber, fetchLastUsedSupplierId } from "@/lib/api-client";
+import { 
+  fetchLastItemPrices, 
+  fetchPreviousBillByInvoiceNumber, 
+  fetchLastUsedSupplierId,
+  calculateAverageShelfLife,
+  calculateEstimatedExpiry,
+  checkDuplicateInvoice,
+  fetchLastBillFromSupplier
+} from "@/lib/api-client";
 import { format, parseISO } from "date-fns";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
@@ -106,6 +114,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [duplicateInvoice, setDuplicateInvoice] = useState<{ id: string; date: string } | null>(null);
+  const [lastBillFromSupplier, setLastBillFromSupplier] = useState<SupplierBill | null>(null);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const isEditing = !!billId && !!initialBill;
@@ -205,29 +215,98 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     prefilLastSupplier();
   }, [isEditing, tenant, watchedSupplierId, setValue]);
 
-  // Handle invoice number change - smart lookup for repeated invoices
+  // Handle invoice number change - smart lookup for repeated invoices + duplicate detection
   const handleInvoiceNumberChange = async (invoiceNumber: string) => {
     setValue("invoiceNumber", invoiceNumber);
 
     // Only lookup if invoice number is long enough (at least 3 chars)
-    if (invoiceNumber.length < 3) return;
+    if (invoiceNumber.length < 3) {
+      setDuplicateInvoice(null);
+      return;
+    }
 
     // Get current supplier for context
     const currentSupplierId = watchedSupplierId;
-    if (!currentSupplierId) return; // Supplier must be selected first
+    if (!currentSupplierId) {
+      setDuplicateInvoice(null);
+      return; // Supplier must be selected first
+    }
 
     try {
+      // Check for duplicate invoice
+      const duplicate = await checkDuplicateInvoice(invoiceNumber, currentSupplierId, tenant, billId);
+      setDuplicateInvoice(duplicate);
+
+      // Always try to fetch and fill the date from last purchase with this invoice number
+      // (whether it's a duplicate or not)
       const previousBill = await fetchPreviousBillByInvoiceNumber(invoiceNumber, tenant);
       if (previousBill && previousBill.supplierId === currentSupplierId) {
-        // Only auto-fill if it's from the same supplier
         setValue("date", previousBill.date);
-        toast.success("Found previous bill - date auto-filled", {
-          duration: 2000,
-        });
+        
+        // Show appropriate toast message
+        if (duplicate) {
+          toast.warning("Duplicate invoice detected - date from previous entry", {
+            duration: 2500,
+          });
+        } else {
+          toast.success("Found previous bill - date auto-filled", {
+            duration: 2000,
+          });
+        }
       }
     } catch (error) {
       console.error("Failed to lookup invoice number:", error);
+      setDuplicateInvoice(null);
     }
+  };
+
+  // Load last bill from supplier when supplier is selected (for repeat order feature)
+  useEffect(() => {
+    if (!watchedSupplierId || isEditing) return;
+
+    const loadLastBill = async () => {
+      try {
+        const lastBill = await fetchLastBillFromSupplier(watchedSupplierId, tenant);
+        setLastBillFromSupplier(lastBill);
+      } catch (error) {
+        console.error("Failed to load last bill from supplier:", error);
+      }
+    };
+
+    loadLastBill();
+  }, [watchedSupplierId, tenant, isEditing]);
+
+  // Handle repeat last order - clone the last bill items
+  const handleRepeatLastOrder = async () => {
+    if (!lastBillFromSupplier) return;
+
+    // Remove empty first item if present
+    if (fields.length === 1 && !fields[0]?.itemName) {
+      remove(0);
+    }
+
+    // Add all items from last bill
+    lastBillFromSupplier.items.forEach((item) => {
+      append({
+        itemName: item.itemName,
+        hsnCode: item.hsnCode,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+        mrp: item.mrp,
+        purchasePrice: item.purchasePrice,
+        quantity: item.quantity,
+        gstRate: item.gstRate,
+        gstInclusive: item.gstInclusive,
+        unitType: item.unitType,
+        packSize: item.packSize,
+        schemeQuantity: item.schemeQuantity,
+        schemePattern: item.schemePattern,
+      });
+    });
+
+    toast.success(`Added ${lastBillFromSupplier.items.length} items from last order`, {
+      duration: 2000,
+    });
   };
 
   // Live totals — using centralized GST calculator
@@ -293,7 +372,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     setExpandedItems(newSet);
   };
 
-  // Handle item name selection with auto-population of prices
+  // Handle item name selection with auto-population of prices and expiry estimation
   const handleItemNameChange = async (itemName: string, index: number) => {
     // Set the item name
     setValue(`items.${index}.itemName`, itemName);
@@ -313,8 +392,28 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
             duration: 2000,
           });
         }
+
+        // Try to estimate expiry date based on shelf life from same supplier
+        if (watchedSupplierId) {
+          const shelfLifeDays = await calculateAverageShelfLife(itemName, watchedSupplierId, tenant);
+          if (shelfLifeDays) {
+            const orderDate = watchedItems?.[0]?.expiryDate
+              ? new Date().toISOString().split("T")[0]
+              : watchedItems?.[index]?.expiryDate || new Date().toISOString().split("T")[0];
+            
+            const estimatedExpiry = calculateEstimatedExpiry(orderDate, shelfLifeDays);
+            
+            // Only auto-fill if expiry date is not already set
+            if (!watchedItems?.[index]?.expiryDate) {
+              setValue(`items.${index}.expiryDate`, estimatedExpiry);
+              toast.info(`Expiry estimated: ${estimatedExpiry} (${shelfLifeDays} days shelf life)`, {
+                duration: 3000,
+              });
+            }
+          }
+        }
       } catch (error) {
-        console.error("Failed to fetch last item prices:", error);
+        console.error("Failed to fetch item data:", error);
         // Silent fail - don't interrupt user flow
       }
     }
@@ -440,21 +539,47 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
           </p>
         )}
 
+        {/* Duplicate Invoice Warning Banner */}
+        {duplicateInvoice && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-900">⚠️ Duplicate Invoice Detected</p>
+              <p className="text-xs text-amber-800 mt-1">
+                This invoice number was already entered on {format(parseISO(duplicateInvoice.date), "dd MMM yyyy")}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header Fields */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <h3 className="text-base font-semibold">Supplier Details</h3>
-            {!isFullscreen && (
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors ml-auto"
-                title="Enter fullscreen mode"
-              >
-                <Maximize2 className="h-4 w-4" />
-                <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2 ml-auto">
+              {!isEditing && lastBillFromSupplier && (
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleRepeatLastOrder}
+                  className="gap-2"
+                  title="Clone all items from last order"
+                >
+                  <Copy className="h-4 w-4" /> Repeat Last Order
+                </Button>
+              )}
+              {!isFullscreen && (
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+                  title="Enter fullscreen mode"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                  <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
+                </button>
+              )}
+            </div>
           </CardHeader>
         <CardContent className="grid sm:grid-cols-3 gap-4">
           {/* Supplier */}
