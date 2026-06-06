@@ -42,11 +42,15 @@ const itemSchema = z.object({
     .string()
     .min(1, "Expiry date required")
     .refine((val) => {
-      // Validate YYYY-MM format from month input
+      // Validate YYYY-MM format
       if (!val || !/^\d{4}-\d{2}$/.test(val)) return false;
       const [year, month] = val.split("-").map(Number);
-      const lastDay = new Date(year, month, 0);
-      return lastDay > new Date();
+      // Check if the month is in the future
+      // month from input is 1-indexed (01-12), Date constructor uses 0-indexed (0-11)
+      const expiryMonthStart = new Date(year, month - 1, 1);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return expiryMonthStart > today;
     }, { message: "Expiry month must be in the future" }),
   mrp:           z.number({ error: "MRP must be > 0" }).positive("MRP must be > 0"),
   purchasePrice: z.number({ error: "Purchase price must be > 0" }).positive("Purchase price must be > 0"),
@@ -520,11 +524,25 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                         name={`items.${index}.expiryDate`}
                         render={({ field }) => (
                           <Input
-                            type="month"
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(e.target.value)}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="mm/yyyy"
+                            value={field.value ? field.value.split('-').reverse().join('/') : ""}
+                            onChange={(e) => {
+                              const input = e.target.value.replace(/\D/g, "");
+                              if (input.length === 0) {
+                                field.onChange("");
+                              } else if (input.length === 4) {
+                                const mm = input.slice(0, 2);
+                                const yy = input.slice(2, 4);
+                                const fullYear = parseInt(yy) < 30 ? 2000 + parseInt(yy) : 1900 + parseInt(yy);
+                                field.onChange(`${fullYear}-${mm}`);
+                              }
+                            }}
                             onBlur={field.onBlur}
+                            maxLength={7}
                             className="text-sm"
+                            title="Enter expiry date in mm/yyyy format (e.g., 10/2027)"
                           />
                         )}
                       />
