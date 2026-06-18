@@ -108,9 +108,11 @@ export const localDb = {
   },
 
   // ── Batches / Inventory ────────────────────────────────────────────────────
-  getBatches: (): Batch[] => {
+  getBatches: (tenantId?: string): Batch[] => {
     seed();
-    return read<Batch>(KEYS.batches).map((b) => ({
+    const list = read<Batch>(KEYS.batches);
+    const filtered = tenantId ? list.filter((b) => b.tenantId === tenantId) : list;
+    return filtered.map((b) => ({
       ...b,
       status: getInventoryStatus(b.expiryDate),
     }));
@@ -162,9 +164,11 @@ export const localDb = {
   },
 
   // ── Supplier Bills ─────────────────────────────────────────────────────────
-  getSupplierBills: (): SupplierBill[] => {
+  getSupplierBills: (tenantId?: string): SupplierBill[] => {
     seed();
-    return read<SupplierBill>(KEYS.supplierBills);
+    const list = read<SupplierBill>(KEYS.supplierBills);
+    if (tenantId) return list.filter((b) => b.tenantId === tenantId);
+    return list;
   },
   addSupplierBill: (bill: SupplierBill): void => {
     const list = localDb.getSupplierBills();
@@ -175,6 +179,10 @@ export const localDb = {
     const list = read<SupplierBill>(KEYS.supplierBills).map((b) =>
       b.id === id ? { ...b, ...updates } : b
     );
+    write(KEYS.supplierBills, list);
+  },
+  deleteSupplierBill: (id: string): void => {
+    const list = read<SupplierBill>(KEYS.supplierBills).filter((b) => b.id !== id);
     write(KEYS.supplierBills, list);
   },
 

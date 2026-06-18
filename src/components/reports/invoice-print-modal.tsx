@@ -20,6 +20,17 @@ interface Props {
 const fmt = (n: number) =>
   "₹" + new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n);
 
+function QtyWithFree({ quantity, schemeQuantity }: { quantity: number; schemeQuantity?: number }) {
+  if (schemeQuantity && schemeQuantity > 0) {
+    return (
+      <>
+        {quantity} <span className="font-semibold">+{schemeQuantity}</span>
+      </>
+    );
+  }
+  return <>{quantity}</>;
+}
+
 // Escape HTML entities to prevent XSS in the print window template
 const esc = (s: string | number | undefined) =>
   String(s ?? "")
@@ -317,7 +328,7 @@ export function InvoicePrintModal({ invoice, tenant, onClose }: Props) {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-primary text-primary-foreground">
-                  {["#", "Item", "HSN", "Batch", "Expiry", "MRP", "Qty", "Disc", "GST%", "Taxable", "GST Amt", "Total"].map(
+                  {["#", "Item", "HSN", "Batch", "Expiry", "MRP", "Qty (+Free)", "Disc", "GST%", "Taxable", "GST Amt", "Total"].map(
                     (h, i) => (
                       <th key={h} className={`px-2 py-2 font-semibold whitespace-nowrap ${i >= 5 ? "text-right" : "text-left"}`}>
                         {h}
@@ -335,7 +346,9 @@ export function InvoicePrintModal({ invoice, tenant, onClose }: Props) {
                     <td className="px-2 py-2 font-mono text-muted-foreground">{l.batchNumber}</td>
                     <td className="px-2 py-2 text-muted-foreground">{l.expiryDate}</td>
                     <td className="px-2 py-2 text-right">{fmt(l.mrp)}</td>
-                    <td className="px-2 py-2 text-right">{l.quantity}</td>
+                    <td className="px-2 py-2 text-right">
+                      <QtyWithFree quantity={l.quantity} schemeQuantity={l.schemeQuantity} />
+                    </td>
                     <td className="px-2 py-2 text-right">
                       {l.discountValue
                         ? l.discountType === "percentage"

@@ -3,6 +3,7 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -175,6 +176,9 @@ export function BillPrintModal({ bill, tenant, onClose }: Props) {
           <div className="flex items-start justify-between pr-6">
             <div>
               <DialogTitle>Purchase Bill — #{bill.invoiceNumber}</DialogTitle>
+              <DialogDescription className="sr-only">
+                Purchase bill details for invoice {bill.invoiceNumber} from {bill.supplierName}
+              </DialogDescription>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {bill.supplierName} · {format(parseISO(bill.date), "dd MMM yyyy")}
               </p>

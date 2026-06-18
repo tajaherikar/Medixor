@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
+import { clearSessionCookie } from "@/lib/session-token";
 
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
   try {
     const response = NextResponse.json({ success: true });
-    
-    // Delete session cookie
-    response.cookies.delete("medixor-session");
+    clearSessionCookie(response);
     
     return response;
   } catch (err) {

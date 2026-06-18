@@ -23,11 +23,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
-import { Supplier, GstRate, UnitType, SupplierBill } from "@/lib/types";
+import { Supplier, GstRate, UnitType, SupplierBill, SupplierBillItem } from "@/lib/types";
 import { useAuthStore, useUIStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import { MedicineNameInput } from "@/components/ui/medicine-name-input";
 import { calculateGst } from "@/lib/gst-calculator";
+import { 
+  fetchLastItemPrices, 
+  fetchPreviousBillByInvoiceNumber, 
+  fetchLastUsedSupplierId,
+  calculateAverageShelfLife,
+  calculateEstimatedExpiry,
+  checkDuplicateInvoice,
+  fetchLastBillFromSupplier
+} from "@/lib/api-client";
+import { combineBillItems } from "@/lib/bill-recovery-utils";
 import { format, parseISO } from "date-fns";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
@@ -105,6 +115,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [duplicateInvoice, setDuplicateInvoice] = useState<{ id: string; date: string } | null>(null);
+  const [lastBillFromSupplier, setLastBillFromSupplier] = useState<SupplierBill | null>(null);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const isEditing = !!billId && !!initialBill;
@@ -186,6 +198,118 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty, submitted]);
 
+  // Pre-fill supplier with last used supplier on initial form load (only for new bills)
+  useEffect(() => {
+    if (isEditing || watchedSupplierId) return; // Skip if editing or already selected
+    
+    const prefilLastSupplier = async () => {
+      try {
+        const lastSupplierId = await fetchLastUsedSupplierId(tenant);
+        if (lastSupplierId) {
+          setValue("supplierId", lastSupplierId);
+        }
+      } catch (error) {
+        console.error("Failed to fetch last used supplier:", error);
+      }
+    };
+
+    prefilLastSupplier();
+  }, [isEditing, tenant, watchedSupplierId, setValue]);
+
+  // Handle invoice number change - smart lookup for repeated invoices + duplicate detection
+  const handleInvoiceNumberChange = async (invoiceNumber: string) => {
+    setValue("invoiceNumber", invoiceNumber);
+
+    // Only lookup if invoice number is long enough (at least 3 chars)
+    if (invoiceNumber.length < 3) {
+      setDuplicateInvoice(null);
+      return;
+    }
+
+    // Get current supplier for context
+    const currentSupplierId = watchedSupplierId;
+    if (!currentSupplierId) {
+      setDuplicateInvoice(null);
+      return; // Supplier must be selected first
+    }
+
+    try {
+      // Check for duplicate invoice
+      const duplicate = await checkDuplicateInvoice(invoiceNumber, currentSupplierId, tenant, billId);
+      setDuplicateInvoice(duplicate);
+
+      // Always try to fetch and fill the date from last purchase with this invoice number
+      // (whether it's a duplicate or not)
+      const previousBill = await fetchPreviousBillByInvoiceNumber(invoiceNumber, tenant);
+      if (previousBill && previousBill.supplierId === currentSupplierId) {
+        setValue("date", previousBill.date);
+        
+        // Show appropriate toast message
+        if (duplicate) {
+          toast.warning("Duplicate invoice detected - date from previous entry", {
+            duration: 2500,
+          });
+        } else {
+          toast.success("Found previous bill - date auto-filled", {
+            duration: 2000,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to lookup invoice number:", error);
+      setDuplicateInvoice(null);
+    }
+  };
+
+  // Load last bill from supplier when supplier is selected (for repeat order feature)
+  useEffect(() => {
+    if (!watchedSupplierId || isEditing) return;
+
+    const loadLastBill = async () => {
+      try {
+        const lastBill = await fetchLastBillFromSupplier(watchedSupplierId, tenant);
+        setLastBillFromSupplier(lastBill);
+      } catch (error) {
+        console.error("Failed to load last bill from supplier:", error);
+      }
+    };
+
+    loadLastBill();
+  }, [watchedSupplierId, tenant, isEditing]);
+
+  // Handle repeat last order - clone the last bill items
+  const handleRepeatLastOrder = async () => {
+    if (!lastBillFromSupplier) return;
+
+    // Remove empty first item if present
+    if (fields.length === 1 && !fields[0]?.itemName) {
+      remove(0);
+    }
+
+    // Add all items from last bill
+    lastBillFromSupplier.items.forEach((item) => {
+      append({
+        itemName: item.itemName,
+        hsnCode: item.hsnCode,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+        mrp: item.mrp,
+        purchasePrice: item.purchasePrice,
+        quantity: item.quantity,
+        gstRate: item.gstRate,
+        gstInclusive: item.gstInclusive,
+        unitType: item.unitType,
+        packSize: item.packSize,
+        schemeQuantity: item.schemeQuantity,
+        schemePattern: item.schemePattern,
+      });
+    });
+
+    toast.success(`Added ${lastBillFromSupplier.items.length} items from last order`, {
+      duration: 2000,
+    });
+  };
+
   // Live totals — using centralized GST calculator
   const itemTotals = useMemo(() => {
     return (watchedItems ?? []).map((item) => {
@@ -249,6 +373,53 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
     setExpandedItems(newSet);
   };
 
+  // Handle item name selection with auto-population of prices and expiry estimation
+  const handleItemNameChange = async (itemName: string, index: number) => {
+    // Set the item name
+    setValue(`items.${index}.itemName`, itemName);
+
+    // If item name is long enough to be a real selection (not just typing)
+    if (itemName.length > 2) {
+      try {
+        // Fetch the last purchase prices for this item
+        const lastPrices = await fetchLastItemPrices(itemName, tenant);
+        if (lastPrices) {
+          // Auto-populate MRP and Purchase Price
+          setValue(`items.${index}.mrp`, lastPrices.mrp);
+          setValue(`items.${index}.purchasePrice`, lastPrices.purchasePrice);
+          
+          // Show subtle feedback
+          toast.success("Prices auto-filled from last purchase", {
+            duration: 2000,
+          });
+        }
+
+        // Try to estimate expiry date based on shelf life from same supplier
+        if (watchedSupplierId) {
+          const shelfLifeDays = await calculateAverageShelfLife(itemName, watchedSupplierId, tenant);
+          if (shelfLifeDays) {
+            const orderDate = watchedItems?.[0]?.expiryDate
+              ? new Date().toISOString().split("T")[0]
+              : watchedItems?.[index]?.expiryDate || new Date().toISOString().split("T")[0];
+            
+            const estimatedExpiry = calculateEstimatedExpiry(orderDate, shelfLifeDays);
+            
+            // Only auto-fill if expiry date is not already set
+            if (!watchedItems?.[index]?.expiryDate) {
+              setValue(`items.${index}.expiryDate`, estimatedExpiry);
+              toast.info(`Expiry estimated: ${estimatedExpiry} (${shelfLifeDays} days shelf life)`, {
+                duration: 3000,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch item data:", error);
+        // Silent fail - don't interrupt user flow
+      }
+    }
+  };
+
   async function onSubmit(data: BillFormValues) {
     const supplier = suppliers.find((s) => s.id === data.supplierId);
 
@@ -291,51 +462,111 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
       grandTotal: taxableAmount + totalGst,
     };
 
+    // Check for auto-merge: if creating new bill and duplicate exists, merge instead
+    let finalPayload: any = basePayload;
+    let method = "POST";
+    let url = `/api/${tenant}/supplier-bills`;
+    let mergedItemsCount = 0;
+    let operationMessage = "saved";
+
+    if (!isEditing && duplicateInvoice) {
+      try {
+        // Fetch the existing duplicate bill
+        const existingBillRes = await fetch(`/api/${tenant}/supplier-bills`);
+        const allBills: SupplierBill[] = existingBillRes.ok ? await existingBillRes.json() : [];
+        const existingBill = allBills.find((b) => b.id === duplicateInvoice.id);
+
+        if (existingBill) {
+          const mergedItems = combineBillItems([
+            ...existingBill.items,
+            ...(enrichedItems as SupplierBillItem[]),
+          ]);
+          const newItemsCount = mergedItems.length - existingBill.items.length;
+          const addedQty =
+            mergedItems.reduce((s, i) => s + i.quantity, 0) -
+            existingBill.items.reduce((s, i) => s + i.quantity, 0);
+
+          if (addedQty <= 0 && newItemsCount <= 0) {
+            toast.warning("All items already exist in this invoice", {
+              description: "No new items were added",
+              duration: 3000,
+            });
+            return;
+          }
+
+          const mergedTaxable = mergedItems.reduce((s, i) => s + (i.taxableAmount || 0), 0);
+          const mergedGst = mergedItems.reduce((s, i) => s + (i.cgst || 0) + (i.sgst || 0), 0);
+
+          finalPayload = {
+            ...basePayload,
+            items: mergedItems,
+            taxableAmount: mergedTaxable,
+            totalGst: mergedGst,
+            grandTotal: mergedTaxable + mergedGst,
+            paymentStatus: existingBill.paymentStatus,
+            paidAmount: existingBill.paidAmount,
+            createdAt: existingBill.createdAt,
+            editedAt: new Date().toISOString(),
+          };
+
+          method = "PUT";
+          url = `/api/${tenant}/supplier-bills/${duplicateInvoice.id}`;
+          operationMessage = `updated (${mergedItems.length} items total)`;
+        }
+      } catch (error) {
+        console.error("Failed to fetch existing bill for merge:", error);
+        // Fall back to creating new bill if fetch fails
+      }
+    }
+
     // For create - add metadata
-    const createPayload = {
-      ...basePayload,
-      paymentStatus: initialBill?.paymentStatus ?? "unpaid",
-      paidAmount: initialBill?.paidAmount ?? 0,
-      createdAt: initialBill?.createdAt ?? new Date().toISOString(),
-    };
+    if (method === "POST") {
+      finalPayload = {
+        ...finalPayload,
+        paymentStatus: initialBill?.paymentStatus ?? "unpaid",
+        paidAmount: initialBill?.paidAmount ?? 0,
+        createdAt: initialBill?.createdAt ?? new Date().toISOString(),
+      };
+    }
 
-    // For update - preserve payment status and metadata, update bill details
-    const updatePayload = {
-      ...basePayload,
-      paymentStatus: initialBill?.paymentStatus,
-      paidAmount: initialBill?.paidAmount,
-      createdAt: initialBill?.createdAt,
-      dueDate: initialBill?.dueDate ?? basePayload.dueDate,
-    };
-
-    const payload = isEditing ? updatePayload : createPayload;
-    const method = isEditing ? "PUT" : "POST";
-    const url = isEditing 
-      ? `/api/${tenant}/supplier-bills/${billId}`
-      : `/api/${tenant}/supplier-bills`;
+    // For editing existing bill (not merge case) - preserve payment status and metadata
+    if (isEditing && method === "POST") {
+      finalPayload = {
+        ...finalPayload,
+        paymentStatus: initialBill?.paymentStatus,
+        paidAmount: initialBill?.paidAmount,
+        createdAt: initialBill?.createdAt,
+        dueDate: initialBill?.dueDate ?? basePayload.dueDate,
+      };
+      method = "PUT";
+      url = `/api/${tenant}/supplier-bills/${billId}`;
+      operationMessage = "updated";
+    }
 
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(finalPayload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = typeof err.error === "string" ? err.error : (err.message ?? res.statusText);
-      toast.error(`Failed to ${isEditing ? 'update' : 'save'} bill`, {
+      toast.error(`Failed to ${operationMessage.split('(')[0].trim()} bill`, {
         description: msg,
         duration: 5000,
       });
       return;
     }
-    toast.success(`Bill ${isEditing ? 'updated' : 'saved'} successfully`, {
-      description: `Invoice ${payload.invoiceNumber}`,
+    toast.success(`Bill ${operationMessage} successfully`, {
+      description: `Invoice ${finalPayload.invoiceNumber}`,
       duration: 3000,
     });
     setSubmitted(true);
     setTimeout(() => {
       reset();
       setSubmitted(false);
+      setDuplicateInvoice(null);
+      setLastBillFromSupplier(null);
       onSuccess?.();
     }, 1500);
   }
@@ -369,21 +600,51 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
           </p>
         )}
 
+        {/* Duplicate Invoice Warning Banner */}
+        {duplicateInvoice && !isEditing && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-900">ℹ️ Duplicate Invoice Detected - Auto-Merge</p>
+              <p className="text-xs text-blue-800 mt-1">
+                This invoice already exists (entered on {format(parseISO(duplicateInvoice.date), "dd MMM yyyy")}). 
+                When you save, new items will be automatically merged into the existing invoice.
+              </p>
+              <p className="text-xs text-blue-700 mt-2 font-medium">
+                💡 Tip: Items with the same batch number will have quantities combined.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header Fields */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <h3 className="text-base font-semibold">Supplier Details</h3>
-            {!isFullscreen && (
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors ml-auto"
-                title="Enter fullscreen mode"
-              >
-                <Maximize2 className="h-4 w-4" />
-                <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2 ml-auto">
+              {!isEditing && lastBillFromSupplier && (
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleRepeatLastOrder}
+                  className="gap-2"
+                  title="Clone all items from last order"
+                >
+                  <Copy className="h-4 w-4" /> Repeat Last Order
+                </Button>
+              )}
+              {!isFullscreen && (
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+                  title="Enter fullscreen mode"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                  <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
+                </button>
+              )}
+            </div>
           </CardHeader>
         <CardContent className="grid sm:grid-cols-3 gap-4">
           {/* Supplier */}
@@ -422,7 +683,18 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
           {/* Invoice Number */}
           <div className="space-y-1">
             <Label>Invoice Number</Label>
-            <Input placeholder="INV-001" {...register("invoiceNumber")} />
+            <Controller
+              control={control}
+              name="invoiceNumber"
+              render={({ field }) => (
+                <Input 
+                  placeholder="INV-001" 
+                  value={field.value}
+                  onChange={(e) => handleInvoiceNumberChange(e.target.value)}
+                  onBlur={field.onBlur}
+                />
+              )}
+            />
             {errors.invoiceNumber && <p className="text-xs text-destructive">{errors.invoiceNumber.message}</p>}
           </div>
 
@@ -495,7 +767,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                             ref={field.ref}
                             name={field.name}
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(itemName) => handleItemNameChange(itemName, index)}
                             onBlur={field.onBlur}
                             inventoryNames={inventoryItemNames}
                             placeholder="e.g., Paracetamol 500mg"
@@ -524,25 +796,12 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                         name={`items.${index}.expiryDate`}
                         render={({ field }) => (
                           <Input
-                            type="text"
-                            inputMode="numeric"
+                            type="month"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
                             placeholder="mm/yyyy"
-                            value={field.value ? field.value.split('-').reverse().join('/') : ""}
-                            onChange={(e) => {
-                              const input = e.target.value.replace(/\D/g, "");
-                              if (input.length === 0) {
-                                field.onChange("");
-                              } else if (input.length === 4) {
-                                const mm = input.slice(0, 2);
-                                const yy = input.slice(2, 4);
-                                const fullYear = parseInt(yy) < 30 ? 2000 + parseInt(yy) : 1900 + parseInt(yy);
-                                field.onChange(`${fullYear}-${mm}`);
-                              }
-                            }}
                             onBlur={field.onBlur}
-                            maxLength={7}
                             className="text-sm"
-                            title="Enter expiry date in mm/yyyy format (e.g., 10/2027)"
                           />
                         )}
                       />
@@ -588,7 +847,7 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
                       <div className="flex-1 space-y-1">
                         <Label className="text-xs font-medium">GST Rate (%)</Label>
                         <Select
-                          defaultValue={String(emptyItem.gstRate)}
+                          value={String(watchedItems?.[index]?.gstRate || emptyItem.gstRate)}
                           onValueChange={(v) => setValue(`items.${index}.gstRate`, Number(v))}
                         >
                           <SelectTrigger className="h-9 text-sm">
@@ -778,6 +1037,8 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
           onDiscard={() => {
             setShowUnsavedModal(false);
             reset();
+            setDuplicateInvoice(null);
+            setLastBillFromSupplier(null);
           }}
           title="Unsaved Bill"
           description="You have unsaved changes to this supplier bill. Save before leaving?"

@@ -42,13 +42,18 @@ export async function POST(
     };
 
     // Deduct sold quantities from batch inventory
-    const lineItems = (newInvoice.lineItems ?? []) as Array<{ batchId: string; quantity: number }>;
+    const lineItems = (newInvoice.lineItems ?? []) as Array<{
+      batchId: string;
+      quantity: number;
+      schemeQuantity?: number;
+    }>;
     const batches = await db.getBatches(tenant);  // Load once, reuse for all items
     for (const item of lineItems) {
       const batch = batches.find((b) => b.id === item.batchId);
       if (batch) {
+        const totalOut = item.quantity + (item.schemeQuantity ?? 0);
         await db.updateBatch(batch.id, {
-          availableQty: Math.max(0, batch.availableQty - item.quantity),
+          availableQty: Math.max(0, batch.availableQty - totalOut),
         });
       }
     }

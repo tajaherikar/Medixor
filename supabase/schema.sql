@@ -190,6 +190,7 @@ alter table batches add column if not exists "packSize" integer;
 
 -- Migration: add supplierAddress to supplier_bills (safe to re-run)
 alter table supplier_bills add column if not exists "supplierAddress" text;
+alter table supplier_bills add column if not exists "editedAt" timestamptz;
 
 -- ─── Row Level Security (recommended) ─────────────────────────────────────────
 -- Enable RLS and add policies per your auth strategy, e.g.:

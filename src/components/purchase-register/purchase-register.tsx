@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SupplierBill } from "@/lib/types";
 import { fetchSupplierBills } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ClipboardList, ChevronDown, ChevronRight, CreditCard, IndianRupee, Edit, Eye } from "lucide-react";
+import { ClipboardList, ChevronDown, ChevronRight, CreditCard, IndianRupee, Edit, Eye, Settings } from "lucide-react";
 import { useAuthStore } from "@/lib/stores";
 import { format, parseISO } from "date-fns";
 import {
@@ -31,6 +31,8 @@ import {
 import { SupplierBillForm } from "@/components/supplier-bill-form/supplier-bill-form";
 import { usePagination } from "@/lib/hooks/usePagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
+import { DuplicateInvoicesMerger } from "@/components/purchase-register/duplicate-invoices-merger";
+import { MissingBillsRecovery } from "@/components/purchase-register/missing-bills-recovery";
 
 interface PurchaseRegisterProps { tenant: string; }
 
@@ -55,6 +57,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [payBill, setPayBill] = useState<SupplierBill | null>(null);
   const [editBill, setEditBill] = useState<SupplierBill | null>(null);
+  const [showAdminTools, setShowAdminTools] = useState(false);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   
@@ -70,6 +73,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState("bank");
   const [payRef, setPayRef] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "outstanding" | "paid">("all");
 
   const queryClient = useQueryClient();
   const pagination = usePagination(20); // 20 items per page
@@ -81,15 +85,32 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Filter out paid bills for display (pending invoices only)
-  const pendingBills = bills.filter((b) => b.paymentStatus !== "paid");
+  // Filter bills by payment status
+  const displayedBills = useMemo(() => {
+    const sorted = [...bills].sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+    });
 
-  // Paginate pending bills on client side
-  const paginatedBills = pendingBills.slice(
+    if (statusFilter === "paid") {
+      return sorted.filter((b) => b.paymentStatus === "paid");
+    }
+    if (statusFilter === "outstanding") {
+      return sorted.filter((b) => b.paymentStatus !== "paid");
+    }
+    return sorted;
+  }, [bills, statusFilter]);
+
+  const outstandingCount = bills.filter((b) => b.paymentStatus !== "paid").length;
+  const paidCount = bills.filter((b) => b.paymentStatus === "paid").length;
+
+  // Paginate displayed bills on client side
+  const paginatedBills = displayedBills.slice(
     pagination.pageIndex * pagination.pageSize,
     (pagination.pageIndex + 1) * pagination.pageSize
   );
-  const totalPages = Math.ceil(pendingBills.length / pagination.pageSize);
+  const totalPages = Math.ceil(displayedBills.length / pagination.pageSize);
 
   const payMutation = useMutation({
     mutationFn: async () => {
@@ -144,10 +165,38 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
       {/* Bills table */}
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-primary" />
-            Purchase Register
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-primary" />
+              Purchase Register
+              <span className="text-xs font-normal text-muted-foreground">
+                ({bills.length} total · {outstandingCount} outstanding · {paidCount} paid)
+              </span>
+            </CardTitle>
+            <div className="flex gap-1 rounded-lg border border-border p-1 bg-muted/30">
+              {([
+                { key: "all" as const, label: "All" },
+                { key: "outstanding" as const, label: "Outstanding" },
+                { key: "paid" as const, label: "Paid" },
+              ]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(key);
+                    pagination.goToFirstPage();
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    statusFilter === key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
           {isLoading ? (
@@ -156,8 +205,14 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
             </div>
           ) : bills.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm">No supplier bills recorded yet.</div>
-          ) : pendingBills.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">All supplier bills are fully paid. 🎉</div>
+          ) : displayedBills.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {statusFilter === "paid"
+                ? "No fully paid bills found."
+                : statusFilter === "outstanding"
+                ? "All supplier bills are fully paid. 🎉"
+                : "No supplier bills recorded yet."}
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -296,7 +351,7 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
             </Table>
           )}
         </CardContent>
-        {bills.length > 0 && pendingBills.length > 0 && (
+        {displayedBills.length > 0 && (
           <div className="px-6 py-4 border-t">
             <PaginationControls
               currentPage={pagination.pageIndex}
@@ -304,13 +359,47 @@ export function PurchaseRegister({ tenant }: PurchaseRegisterProps) {
               hasNextPage={pagination.pageIndex < totalPages - 1}
               hasPreviousPage={pagination.pageIndex > 0}
               pageSize={pagination.pageSize}
-              total={pendingBills.length}
+              total={displayedBills.length}
               onNextPage={pagination.nextPage}
               onPreviousPage={pagination.previousPage}
             />
           </div>
         )}
       </Card>
+
+      {/* Admin Tools Section */}
+      {isAdmin && (
+        <div className="mt-6">
+          <button
+            onClick={() => setShowAdminTools(!showAdminTools)}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Settings className="h-4 w-4 text-amber-700" />
+              <span className="text-sm font-semibold text-amber-900">
+                Admin Tools & Maintenance
+              </span>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-amber-700 transition-transform ${
+                showAdminTools ? "" : "-rotate-90"
+              }`}
+            />
+          </button>
+
+          {showAdminTools && (
+            <Card className="mt-3 border-amber-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Duplicate Invoice Management</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <DuplicateInvoicesMerger tenant={tenant} />
+                <MissingBillsRecovery tenant={tenant} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Pay Dialog */}
       <Dialog open={!!payBill} onOpenChange={(o) => !o && setPayBill(null)}>
