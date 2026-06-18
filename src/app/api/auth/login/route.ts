@@ -54,7 +54,17 @@ export async function POST(req: NextRequest) {
     
     return response;
   } catch (err) {
-    console.error("[login] error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[login] error:", message, err);
+    const isConfigError =
+      /AUTH_SECRET|SUPABASE_SERVICE_ROLE_KEY|Missing.*secret/i.test(message);
+    return NextResponse.json(
+      {
+        error: isConfigError
+          ? "Server configuration error. Ensure AUTH_SECRET or Supabase keys are set in Vercel."
+          : "Internal server error",
+      },
+      { status: 500 }
+    );
   }
 }
