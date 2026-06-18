@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
-import { Supplier, GstRate, UnitType, SupplierBill } from "@/lib/types";
+import { Supplier, GstRate, UnitType, SupplierBill, SupplierBillItem } from "@/lib/types";
 import { useAuthStore, useUIStore } from "@/lib/stores";
 import { UnsavedChangesModal } from "@/components/ui/unsaved-changes-modal";
 import { MedicineNameInput } from "@/components/ui/medicine-name-input";
@@ -37,6 +37,7 @@ import {
   checkDuplicateInvoice,
   fetchLastBillFromSupplier
 } from "@/lib/api-client";
+import { combineBillItems } from "@/lib/bill-recovery-utils";
 import { format, parseISO } from "date-fns";
 
 const GST_RATES: GstRate[] = [0, 5, 12, 18, 28];
@@ -461,45 +462,103 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
       grandTotal: taxableAmount + totalGst,
     };
 
+    // Check for auto-merge: if creating new bill and duplicate exists, merge instead
+    let finalPayload: any = basePayload;
+    let method = "POST";
+    let url = `/api/${tenant}/supplier-bills`;
+    let mergedItemsCount = 0;
+    let operationMessage = "saved";
+
+    if (!isEditing && duplicateInvoice) {
+      try {
+        // Fetch the existing duplicate bill
+        const existingBillRes = await fetch(`/api/${tenant}/supplier-bills`);
+        const allBills: SupplierBill[] = existingBillRes.ok ? await existingBillRes.json() : [];
+        const existingBill = allBills.find((b) => b.id === duplicateInvoice.id);
+
+        if (existingBill) {
+          const mergedItems = combineBillItems([
+            ...existingBill.items,
+            ...(enrichedItems as SupplierBillItem[]),
+          ]);
+          const newItemsCount = mergedItems.length - existingBill.items.length;
+          const addedQty =
+            mergedItems.reduce((s, i) => s + i.quantity, 0) -
+            existingBill.items.reduce((s, i) => s + i.quantity, 0);
+
+          if (addedQty <= 0 && newItemsCount <= 0) {
+            toast.warning("All items already exist in this invoice", {
+              description: "No new items were added",
+              duration: 3000,
+            });
+            return;
+          }
+
+          const mergedTaxable = mergedItems.reduce((s, i) => s + (i.taxableAmount || 0), 0);
+          const mergedGst = mergedItems.reduce((s, i) => s + (i.cgst || 0) + (i.sgst || 0), 0);
+
+          finalPayload = {
+            ...basePayload,
+            items: mergedItems,
+            taxableAmount: mergedTaxable,
+            totalGst: mergedGst,
+            grandTotal: mergedTaxable + mergedGst,
+            paymentStatus: existingBill.paymentStatus,
+            paidAmount: existingBill.paidAmount,
+            createdAt: existingBill.createdAt,
+            editedAt: new Date().toISOString(),
+          };
+
+          method = "PUT";
+          url = `/api/${tenant}/supplier-bills/${duplicateInvoice.id}`;
+          operationMessage = `updated (${mergedItems.length} items total)`;
+        }
+      } catch (error) {
+        console.error("Failed to fetch existing bill for merge:", error);
+        // Fall back to creating new bill if fetch fails
+      }
+    }
+
     // For create - add metadata
-    const createPayload = {
-      ...basePayload,
-      paymentStatus: initialBill?.paymentStatus ?? "unpaid",
-      paidAmount: initialBill?.paidAmount ?? 0,
-      createdAt: initialBill?.createdAt ?? new Date().toISOString(),
-    };
+    if (method === "POST") {
+      finalPayload = {
+        ...finalPayload,
+        paymentStatus: initialBill?.paymentStatus ?? "unpaid",
+        paidAmount: initialBill?.paidAmount ?? 0,
+        createdAt: initialBill?.createdAt ?? new Date().toISOString(),
+      };
+    }
 
-    // For update - preserve payment status and metadata, update bill details
-    const updatePayload = {
-      ...basePayload,
-      paymentStatus: initialBill?.paymentStatus,
-      paidAmount: initialBill?.paidAmount,
-      createdAt: initialBill?.createdAt,
-      dueDate: initialBill?.dueDate ?? basePayload.dueDate,
-    };
-
-    const payload = isEditing ? updatePayload : createPayload;
-    const method = isEditing ? "PUT" : "POST";
-    const url = isEditing 
-      ? `/api/${tenant}/supplier-bills/${billId}`
-      : `/api/${tenant}/supplier-bills`;
+    // For editing existing bill (not merge case) - preserve payment status and metadata
+    if (isEditing && method === "POST") {
+      finalPayload = {
+        ...finalPayload,
+        paymentStatus: initialBill?.paymentStatus,
+        paidAmount: initialBill?.paidAmount,
+        createdAt: initialBill?.createdAt,
+        dueDate: initialBill?.dueDate ?? basePayload.dueDate,
+      };
+      method = "PUT";
+      url = `/api/${tenant}/supplier-bills/${billId}`;
+      operationMessage = "updated";
+    }
 
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(finalPayload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = typeof err.error === "string" ? err.error : (err.message ?? res.statusText);
-      toast.error(`Failed to ${isEditing ? 'update' : 'save'} bill`, {
+      toast.error(`Failed to ${operationMessage.split('(')[0].trim()} bill`, {
         description: msg,
         duration: 5000,
       });
       return;
     }
-    toast.success(`Bill ${isEditing ? 'updated' : 'saved'} successfully`, {
-      description: `Invoice ${payload.invoiceNumber}`,
+    toast.success(`Bill ${operationMessage} successfully`, {
+      description: `Invoice ${finalPayload.invoiceNumber}`,
       duration: 3000,
     });
     setSubmitted(true);
@@ -542,12 +601,16 @@ export function SupplierBillForm({ tenant, onSuccess, billId, initialBill }: Sup
         )}
 
         {/* Duplicate Invoice Warning Banner */}
-        {duplicateInvoice && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+        {duplicateInvoice && !isEditing && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-900">⚠️ Duplicate Invoice Detected</p>
-              <p className="text-xs text-amber-800 mt-1">
-                This invoice number was already entered on {format(parseISO(duplicateInvoice.date), "dd MMM yyyy")}
+              <p className="text-sm font-semibold text-blue-900">ℹ️ Duplicate Invoice Detected - Auto-Merge</p>
+              <p className="text-xs text-blue-800 mt-1">
+                This invoice already exists (entered on {format(parseISO(duplicateInvoice.date), "dd MMM yyyy")}). 
+                When you save, new items will be automatically merged into the existing invoice.
+              </p>
+              <p className="text-xs text-blue-700 mt-2 font-medium">
+                💡 Tip: Items with the same batch number will have quantities combined.
               </p>
             </div>
           </div>

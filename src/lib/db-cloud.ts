@@ -119,10 +119,22 @@ export async function addSupplierBill(bill: SupplierBill): Promise<void> {
   if (error) throw error;
 }
 
-export async function updateSupplierBill(id: string, updates: Partial<SupplierBill>): Promise<void> {
-  const { error } = await supabase
+export async function updateSupplierBill(id: string, updates: Partial<SupplierBill>): Promise<SupplierBill> {
+  const { data, error } = await supabase
     .from("supplier_bills")
     .update(updates)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  if (!data) throw new Error(`Supplier bill ${id} not found or update returned no rows`);
+  return data as SupplierBill;
+}
+
+export async function deleteSupplierBill(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("supplier_bills")
+    .delete()
     .eq("id", id);
   if (error) throw error;
 }

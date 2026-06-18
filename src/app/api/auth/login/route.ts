@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { setSessionCookie } from "@/lib/session-token";
 import type { AuthSession } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,8 @@ export async function POST(req: NextRequest) {
       permissions: user.permissions,
     };
     
-    const { passwordHash: _ph, ...safeUser } = user;
+    const { passwordHash, ...safeUser } = user;
+    void passwordHash;
     
     console.log('[Login] SafeUser being returned:', { 
       email: safeUser.email, 
@@ -46,15 +48,7 @@ export async function POST(req: NextRequest) {
     });
     
     const response = NextResponse.json(safeUser);
-    
-    // Set session cookie on response
-    response.cookies.set("medixor-session", JSON.stringify(session), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: "/",
-    });
+    await setSessionCookie(response, session);
     
     console.log('[Login] Session created successfully for:', user.email);
     

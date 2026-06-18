@@ -7,6 +7,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import {
+  getCookieOptions,
+  SESSION_COOKIE_NAME,
+  signSessionToken,
+  verifySessionToken,
+} from "@/lib/session-token";
 
 export interface AuthSession {
   userId: string;
@@ -32,7 +38,7 @@ export async function validateTenantAccess(
   request: NextRequest,
   requestedTenant: string
 ): Promise<AuthSession | NextResponse> {
-  // Get session from cookies or headers
+  // Get session from a signed cookie.
   const session = await getSessionFromRequest(request);
 
   console.log('[Auth] Validating tenant access:', {
@@ -70,14 +76,13 @@ export async function validateTenantAccess(
 }
 
 /**
- * Extract session from request cookies or authorization header
+ * Extract session from a signed request cookie.
  */
 async function getSessionFromRequest(
   request: NextRequest
 ): Promise<AuthSession | null> {
   try {
-    // Method 1: Check for session cookie from request (API routes)
-    const sessionCookie = request.cookies.get("medixor-session");
+    const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
     
     console.log('[Auth] Cookie check:', {
       hasCookie: !!sessionCookie,
@@ -85,18 +90,12 @@ async function getSessionFromRequest(
     });
     
     if (sessionCookie?.value) {
-      // Cookie values are automatically URL-decoded by Next.js
-      const session = JSON.parse(sessionCookie.value) as AuthSession;
+      const session = await verifySessionToken(sessionCookie.value);
+      if (!session) {
+        console.warn('[Auth] ✗ Invalid or expired session cookie');
+        return null;
+      }
       console.log('[Auth] ✓ Session found:', session.email, session.tenantId);
-      return session;
-    }
-
-    // Method 2: Check Authorization header (for API clients)
-    const authHeader = request.headers.get("authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      const session = JSON.parse(Buffer.from(token, "base64").toString()) as AuthSession;
-      console.log('[Auth] ✓ Session from header:', session.email);
       return session;
     }
 
@@ -114,14 +113,7 @@ async function getSessionFromRequest(
 export async function createSession(user: AuthSession): Promise<void> {
   const cookieStore = await cookies();
   
-  // Store session in httpOnly cookie (more secure than localStorage)
-  cookieStore.set("medixor-session", JSON.stringify(user), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-    path: "/",
-  });
+  cookieStore.set(SESSION_COOKIE_NAME, await signSessionToken(user), getCookieOptions());
 }
 
 /**
@@ -129,7 +121,7 @@ export async function createSession(user: AuthSession): Promise<void> {
  */
 export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete("medixor-session");
+  cookieStore.delete(SESSION_COOKIE_NAME);
 }
 
 /**

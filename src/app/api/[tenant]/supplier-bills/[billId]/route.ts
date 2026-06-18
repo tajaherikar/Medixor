@@ -37,6 +37,7 @@ export async function PUT(
       taxableAmount: body.taxableAmount,
       totalGst: body.totalGst,
       grandTotal: body.grandTotal,
+      editedAt: body.editedAt || new Date().toISOString(),
     };
 
     // Add optional supplier fields if provided

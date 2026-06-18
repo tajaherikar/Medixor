@@ -81,12 +81,12 @@ export async function updateSupplier(id: string, updates: Partial<Supplier>): Pr
 // ─── Batches ──────────────────────────────────────────────────────────────────
 
 export async function getBatches(tenantId: string): Promise<Batch[]> {
-  if (useLocal()) return localDb.getBatches();
+  if (useLocal()) return localDb.getBatches(tenantId);
   try {
     return await cloudDb.getBatches(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getBatches();
+    return localDb.getBatches(tenantId);
   }
 }
 
@@ -183,12 +183,12 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
 // ─── Supplier Bills ───────────────────────────────────────────────────────────
 
 export async function getSupplierBills(tenantId: string): Promise<SupplierBill[]> {
-  if (useLocal()) return localDb.getSupplierBills();
+  if (useLocal()) return localDb.getSupplierBills(tenantId);
   try {
     return await cloudDb.getSupplierBills(tenantId);
   } catch (error) {
     console.warn('Cloud DB failed, using local:', error);
-    return localDb.getSupplierBills();
+    return localDb.getSupplierBills(tenantId);
   }
 }
 
@@ -203,14 +203,30 @@ export async function addSupplierBill(bill: SupplierBill): Promise<void> {
   }
 }
 
-export async function updateSupplierBill(id: string, updates: Partial<SupplierBill>): Promise<void> {
-  if (useLocal()) return localDb.updateSupplierBill(id, updates);
+export async function updateSupplierBill(id: string, updates: Partial<SupplierBill>): Promise<SupplierBill | void> {
+  if (useLocal()) {
+    localDb.updateSupplierBill(id, updates);
+    const bill = localDb.getSupplierBills().find((b) => b.id === id);
+    return bill;
+  }
   try {
-    await cloudDb.updateSupplierBill(id, updates);
+    const updated = await cloudDb.updateSupplierBill(id, updates);
     localDb.updateSupplierBill(id, updates);
+    return updated;
   } catch (error) {
-    console.warn('Cloud DB failed, updating locally:', error);
-    localDb.updateSupplierBill(id, updates);
+    console.error("Cloud DB updateSupplierBill failed:", error);
+    throw error;
+  }
+}
+
+export async function deleteSupplierBill(id: string): Promise<void> {
+  if (useLocal()) return localDb.deleteSupplierBill(id);
+  try {
+    await cloudDb.deleteSupplierBill(id);
+    localDb.deleteSupplierBill(id);
+  } catch (error) {
+    console.warn('Cloud DB failed, deleting locally:', error);
+    localDb.deleteSupplierBill(id);
   }
 }
 

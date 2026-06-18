@@ -49,7 +49,7 @@ export async function POST(
       taxableAmount,
       totalGst: 0,
       grandTotal: taxableAmount,
-      paymentStatus: "pending",
+      paymentStatus: "unpaid",
       paidAmount: 0,
       ...body, // body values (including computed GST totals from client) override defaults
     };
