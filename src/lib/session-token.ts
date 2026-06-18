@@ -16,7 +16,9 @@ function getSessionSecret(): string {
   const secret =
     process.env.AUTH_SECRET ??
     process.env.SESSION_SECRET ??
-    process.env.NEXTAUTH_SECRET;
+    process.env.NEXTAUTH_SECRET ??
+    // Fallback for deployments that already have Supabase configured but no AUTH_SECRET yet
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (secret) return secret;
 
@@ -24,7 +26,9 @@ function getSessionSecret(): string {
     return "medixor-development-session-secret";
   }
 
-  throw new Error("AUTH_SECRET is required in production");
+  throw new Error(
+    "Missing AUTH_SECRET: set AUTH_SECRET in Vercel environment variables (or ensure SUPABASE_SERVICE_ROLE_KEY is configured)"
+  );
 }
 
 function toBase64Url(bytes: Uint8Array): string {
