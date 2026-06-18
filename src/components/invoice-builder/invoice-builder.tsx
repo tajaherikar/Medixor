@@ -35,6 +35,7 @@ import { ValidationErrorAlert } from "@/components/ui/validation-error-alert";
 import { Invoice } from "@/lib/types";
 import { format, parseISO } from "date-fns";
 import { useAuthStore, useSettingsStore, useUIStore } from "@/lib/stores";
+import { CustomerDialog } from "@/components/customers-list/customer-dialog";
 
 interface LineItem {
   batchId: string;
@@ -61,6 +62,8 @@ interface InvoiceBuilderProps {
 
 export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
   const [customerId, setCustomerId] = useState<string>("");
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [newlyCreatedCustomer, setNewlyCreatedCustomer] = useState<Customer | null>(null);
   const [strategy, setStrategy] = useState<BatchSelectionStrategy>("fefo");
   const [isQuickBill, setIsQuickBill] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -135,7 +138,9 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  const selectedCustomer = customers.find((c) => c.id === customerId);
+  const selectedCustomer =
+    customers.find((c) => c.id === customerId) ??
+    (newlyCreatedCustomer?.id === customerId ? newlyCreatedCustomer : undefined);
 
   // In Quick Bill mode, use customerId as customer name; default to "Walk-in Customer" if empty
   const effectiveCustomerName = isQuickBill
@@ -144,11 +149,27 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
 
   // Pre-fill customer discount when customer is selected
   function handleCustomerChange(id: string) {
+    if (id === "__add_customer__") {
+      setCustomerDialogOpen(true);
+      return;
+    }
     setCustomerId(id);
+    setNewlyCreatedCustomer(null);
     const c = customers.find((cu) => cu.id === id);
     if (c?.discount) {
       setCustomerDiscountType(c.discount.type);
       setCustomerDiscountValue(c.discount.value);
+    } else {
+      setCustomerDiscountValue(0);
+    }
+  }
+
+  function handleCustomerSaved(customer: Customer) {
+    setNewlyCreatedCustomer(customer);
+    setCustomerId(customer.id);
+    if (customer.discount) {
+      setCustomerDiscountType(customer.discount.type);
+      setCustomerDiscountValue(customer.discount.value);
     } else {
       setCustomerDiscountValue(0);
     }
@@ -369,6 +390,12 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
                     <SelectValue placeholder="Select customer" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__add_customer__">
+                      <span className="flex items-center gap-2 font-medium text-primary">
+                        <Plus className="h-3.5 w-3.5" />
+                        Add new customer
+                      </span>
+                    </SelectItem>
                     {customers.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
@@ -816,6 +843,12 @@ export function InvoiceBuilder({ tenant }: InvoiceBuilderProps) {
         invoice={printInvoice}
         tenant={tenant}
         onClose={() => setPrintInvoice(null)}
+      />
+      <CustomerDialog
+        tenant={tenant}
+        open={customerDialogOpen}
+        onOpenChange={setCustomerDialogOpen}
+        onSaved={handleCustomerSaved}
       />
 
       {/* Floating Add Item Button — lets users add more items without scrolling all the way up */}
